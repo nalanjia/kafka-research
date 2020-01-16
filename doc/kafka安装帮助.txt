@@ -1,0 +1,297 @@
+以下是安装帮助，看的是官网的quickstart，一步一步跟着操作的
+
+官网的quickstart
+http://kafka.apache.org/quickstart
+
+【Step 1: Download the code】
+- 下载好kafka_2.12-2.3.1.tgz
+- 解压之，tar -xzf kafka_2.12-2.3.1.tgz
+
+- 所以，此时的目录结构为
+/aebiz/2_softnor/15_kafka_binary/（我们在这个目录，操作后续指令）
+	- kafka_2.12-2.3.1（文件夹，解压出来的）
+	- kafka_2.12-2.3.1.tgz（压缩包）
+	- 帮助.txt
+
+- 新建一个log文件夹，后边的zookeeper和kafka的日志都放这里。整洁
+mkdir -p log
+
+【Step 2: Start the server】
+首先，要启动zookeeper。咱们先按照官网的要求，凑出启动指令来
+但是不着急执行，先去改改zookeeper的配置文件
+nohup ./kafka_2.12-2.3.1/bin/zookeeper-server-start.sh ./kafka_2.12-2.3.1/config/zookeeper.properties > ./log/zookeeper.log &
+
+- 修改配置文件zookeeper.properties
+dataDir=/aebiz/2_softnor/15_kafka_binary/data_zookeeper
+clientPort=2100
+- 查看端口是否可用
+netstat -antp|grep 2100
+- 启动zookeeper
+- 查看是否启动了zookeeper
+ps -ef|grep "/kafka_2.12-2.3.1/config/zookeeper.properties"
+-- 查看日志
+tail -f ./log/zookeeper.log
+
+
+好了，该启动kafka了。还是先凑出启动指令来
+同理，不着急执行，先去改改kafka的配置文件
+nohup ./kafka_2.12-2.3.1/bin/kafka-server-start.sh ./kafka_2.12-2.3.1/config/server.properties > ./log/kafka.log &
+
+- 修改配置文件kafka-run-class.sh
+搜索LOG_DIR，找到了第1个出现的位置# Log directory to use，在使用变量LOG_DIR之前，定义这个变量，使用我们自己的值
+LOG_DIR="/aebiz/2_softnor/15_kafka_binary/log"
+- 修改配置文件server.properties
+broker.id=100
+#三元组的格式为<协议名称，主机名，端口号>，主机名不写会自动填充
+listeners=PLAINTEXT://127.0.0.1:1000
+log.dirs=/aebiz/2_softnor/15_kafka_binary/data_kafka
+zookeeper.connect=localhost:2100
+- 修改配置文件producer.properties
+bootstrap.servers=localhost:1000
+- 修改配置文件consumer.properties
+bootstrap.servers=localhost:1000
+- 查看是否启动了kafka
+ps -ef|grep "/kafka_2.12-2.3.1/config/server.properties"
+-- 查看日志
+tail -f ./log/kafka.log
+--查看端口
+netstat -antp|grep 1000
+
+【小经验】
+1.启动kafka之后，会发现zookeeper这边会报错，KeeperErrorCode = NoNode for /brokers
+不要害怕，只是某种预检查吧，比如先查后加。此时去zookeeper里看数据，发现根目录下有了数据，比如brokers，cluster，config，admin
+2.怎么看zookeeper的数据呢？偶提供一个办法，好用得很啊，就是下载镜像这步慢死
+		docker run \
+		--name dev-zkui \
+		-e ZKLIST='62.234.119.66:2100' \
+		-p 2101:9090 \
+		-d maauso/zkui
+
+
+【Step 3: Create a topic】
+新建一个topic，单分区，分区内就一个leader副本
+./kafka_2.12-2.3.1/bin/kafka-topics.sh --create --bootstrap-server localhost:1000 --replication-factor 1 --partitions 1 --topic test
+
+查看topic列表
+./kafka_2.12-2.3.1/bin/kafka-topics.sh --list --bootstrap-server localhost:1000
+
+查看具体的topic
+./kafka_2.12-2.3.1/bin/kafka-topics.sh --describe --bootstrap-server localhost:1000 --topic test
+
+
+【Step 4: Send some messages】
+./kafka_2.12-2.3.1/bin/kafka-console-producer.sh --broker-list localhost:1000 --topic test
+
+
+
+【Step 5: Start a consumer】
+./kafka_2.12-2.3.1/bin/kafka-console-consumer.sh --bootstrap-server localhost:1000 --topic test --group test-group --from-beginning
+
+
+
+【Step 6: Setting up a multi-broker cluster】
+为了启动多个broker，先克隆配置文件server.properties
+cp ./kafka_2.12-2.3.1/config/server.properties ./kafka_2.12-2.3.1/config/server_two.properties
+cp ./kafka_2.12-2.3.1/config/server.properties ./kafka_2.12-2.3.1/config/server_three.properties
+
+然后修改
+broker.id=200
+listeners=PLAINTEXT://:2000
+log.dirs=/aebiz/2_softnor/15_kafka_binary/data_kafka_two
+zookeeper.connect=localhost:2100
+
+broker.id=300
+listeners=PLAINTEXT://:3000
+log.dirs=/aebiz/2_softnor/15_kafka_binary/data_kafka_three
+zookeeper.connect=localhost:2100
+
+
+启动之
+nohup ./kafka_2.12-2.3.1/bin/kafka-server-start.sh ./kafka_2.12-2.3.1/config/server_two.properties > ./log/kafka_two.log &
+nohup ./kafka_2.12-2.3.1/bin/kafka-server-start.sh ./kafka_2.12-2.3.1/config/server_three.properties > ./log/kafka_three.log &
+
+- 查看是否启动了kafka
+ps -ef|grep "/kafka_2.12-2.3.1/config/server_two.properties"
+ps -ef|grep "/kafka_2.12-2.3.1/config/server_three.properties"
+-- 查看日志
+tail -f ./kafka_two.log
+tail -f ./kafka_three.log
+--查看端口
+netstat -antp|grep 2000
+netstat -antp|grep 3000
+
+
+新建一个topic，单分区，3个副本（1个leader，2个follower）
+./kafka_2.12-2.3.1/bin/kafka-topics.sh --create --bootstrap-server localhost:1000 --replication-factor 3 --partitions 1 --topic my-replicated-topic
+
+--describe查看my-replicated-topic
+./kafka_2.12-2.3.1/bin/kafka-topics.sh --describe --bootstrap-server localhost:1000 --topic my-replicated-topic
+
+
+
+生产消息
+./kafka_2.12-2.3.1/bin/kafka-console-producer.sh --broker-list localhost:1000 --topic my-replicated-topic
+
+my test message 1
+my test message 2
+
+
+消费消息
+./kafka_2.12-2.3.1/bin/kafka-console-consumer.sh --bootstrap-server localhost:1000 --from-beginning --topic my-replicated-topic
+
+干掉leader
+刚才--describe查看my-replicated-topic，可以看到谁是leader
+找到进程号，ps -ef|grep "/kafka_2.12-2.3.1/config/server_two.properties"
+然后kill -9 pid
+
+消费消息，还是没问题的，因为新的leader出现了
+
+
+【Step 7: Use Kafka Connect to import/export data】
+- 新建一个有数据的文件
+echo -e "foo\nbar" > myinputdata.txt
+
+-先准备好指令，等修改好配置文件，再执行
+./kafka_2.12-2.3.1/bin/connect-standalone.sh ./kafka_2.12-2.3.1/config/connect-standalone.properties ./kafka_2.12-2.3.1/config/connect-file-source.properties ./kafka_2.12-2.3.1/config/connect-file-sink.properties
+
+
+-修改connect-standalone.properties
+bootstrap.servers=localhost:1000
+offset.storage.file.filename=/aebiz/2_softnor/15_kafka_binary/connect.offsets
+
+-修改connect-file-source.properties
+file=myinputdata.txt
+topic=connect-test
+
+-修改
+connect-file-sink.properties
+file=myinputdata.sink.txt
+topics=connect-test
+
+-运行吧。运行后的效果
+1.新建了一个topic，名字叫connect-test。并且里边有数据。可以消费这个topic，看看数据对不对
+2.多了一个connect.offsets文件，记录了偏移信息
+3.多了一个myinputdata.sink.txt文件，里边的数据是从connect-test导出的
+所以，咱们看到了导入功能（文件myinputdata.txt -> 主题connect-test）
+也看到了导出功能（主题connect-test -> 文件myinputdata.sink.txt）
+
+- 查看connect-test，嗯，确实多了这么个主题
+./kafka_2.12-2.3.1/bin/kafka-topics.sh --describe --bootstrap-server localhost:1000 --topic connect-test
+
+-消费topic，嗯，里边确实有了数据
+./kafka_2.12-2.3.1/bin/kafka-console-consumer.sh --bootstrap-server localhost:1000 --topic connect-test --from-beginning
+
+-追加数据，上边导入导出的connect-standalone.sh别关，消费topic的终端别关，会看到消费终端打印出了新的数据
+echo Another line >> myinputdata.txt
+
+
+-对上边这个，导入导出场景的总结
+1.主要是为了导入，数据在一个文件里，导入到topic中
+2.为啥参数要有导出？也说得通，因为可以对比2个文件，是否一致。如果一致，那太好了，数据是真的全部进到了topic中
+
+
+-如果只想导出？怎么来设计，达到主题connect-test -> 文件myinputdata.sink.txt
+1.把上边的connect-standalone.sh停了
+2.把connect.offsets这个偏移文件删除了
+3.把myinputdata.sink.txt删除了
+4.把myinputdata.txt清空了，运行echo "" > myinputdata.txt
+5.再次运行connect-standalone.sh
+可以想到，这个还是去做导入导出的事情。但是，导入这步，数据是空，导入是没效果的。导出照旧
+所以，达到了我们只想导出的目的
+
+运行之后，看看效果，是不是和预期想的一样
+1.很遗憾！！！！！！！！！！！！！偶猜错了，myinputdata.sink.txt里毛都没有。。。。
+2.又试了别的，比如myinputdata.txt里设置全新的数据，运行后，myinputdata.sink.txt里倒是出了全新的数据。
+但是咱们希望的是topic中的全部数据，而不是全新的那点数据
+原理不明，以后再来测试【如何导出topic的数据到文件里】这个场景吧
+
+【Step 8: Use Kafka Streams to process data】
+流处理，略。暂时只关注消息引擎
+
+
+
+
+【指令kafka-topics.sh】
+指令的帮助，后边不跟参数，就会打印出帮助
+./kafka_2.12-2.3.1/bin/kafka-topics.sh
+
+- 删除connect-test
+./kafka_2.12-2.3.1/bin/kafka-topics.sh --delete --bootstrap-server localhost:1000 --topic connect-test
+
+- 查看topic列表
+./kafka_2.12-2.3.1/bin/kafka-topics.sh --list --bootstrap-server localhost:1000
+
+-查看具体的topic
+./kafka_2.12-2.3.1/bin/kafka-topics.sh --describe --bootstrap-server localhost:1000 --topic test
+
+【指令kafka-console-consumer.sh】
+-消费topic
+./kafka_2.12-2.3.1/bin/kafka-console-consumer.sh --bootstrap-server localhost:1000 --topic connect-test --from-beginning
+
+
+
+【3.1.1 Updating Broker Configs】
+- 查看哪些参数可以动态配置。比如For entity-type 'topics'是主题级别的，For entity-type 'brokers'是broker级别的
+./kafka_2.12-2.3.1/bin/kafka-configs.sh
+
+- 查看broker的动态配置
+./kafka_2.12-2.3.1/bin/kafka-configs.sh --bootstrap-server localhost:1000 --entity-type brokers --entity-name 100 --describe
+
+运行之后，会看到3个维度的值（当然，你改过，才能看到）
+4个维度是动态，静态，集群，默认
+DYNAMIC_BROKER_CONFIG动态:num.io.threads=1, 
+DYNAMIC_DEFAULT_BROKER_CONFIG集群:num.io.threads=20, 
+STATIC_BROKER_CONFIG静态:num.io.threads=8, 
+DEFAULT_CONFIG默认:num.io.threads=8
+优先级是这样的：per-broker动态 > cluster-wide集群 > static静态配置文件 > Kafka默认值
+
+
+- 查看主题test，以及消费。用于前后对比，看看用了动态配置之后，是否能看出点区别来
+./kafka_2.12-2.3.1/bin/kafka-topics.sh --describe --bootstrap-server localhost:1000 --topic test
+./kafka_2.12-2.3.1/bin/kafka-console-consumer.sh --bootstrap-server localhost:1000 --topic test --from-beginning 
+
+- 咱们挑一个broker级别的，改改看，就num.network.threads吧
+./kafka_2.12-2.3.1/bin/kafka-configs.sh --bootstrap-server localhost:1000 --entity-type brokers --entity-name 100 --alter --add-config num.network.threads=1,num.io.threads=4
+
+- 同理，挑一个集群级别的
+./kafka_2.12-2.3.1/bin/kafka-configs.sh --bootstrap-server localhost:1000 --entity-type brokers --entity-default --alter --add-config num.network.threads=20,num.io.threads=20
+
+
+
+
+【小经验】
+1.num.io.threads还不能随便指定，会弹出提示value should be at least half the current value，至少是当前值的一半
+因为偶设置的1，原来的值是8，所以就弹出了提示。设置为4，就通过了。改了3次，才改到了1
+
+运行之后，呵呵，会有行提示：
+Completed updating config for broker: 100.
+
+运行之后，在zookeeper也有体现，路径是/config/brokers/
+
+
+
+
+【小经验】
+1.本来挑的是broker级别的参数listeners来做测试，操作后
+zookeeper中的数据是改了。然后，没有然后了，所有指令不能用了
+查看端口netstat -antp|grep 1000，有，说明程序监听的还是1000端口
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
