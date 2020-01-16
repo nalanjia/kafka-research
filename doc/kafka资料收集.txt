@@ -1,0 +1,49 @@
+kafka官网
+http://kafka.apache.org/23/documentation.html
+http://kafka.apache.org/23/javadoc/index.html
+
+JIRA提BUG的地方
+https://issues.apache.org/jira/projects/KAFKA/issues
+
+spring kafka官网，文档，API，github
+https://spring.io/projects/spring-kafka#overview
+https://docs.spring.io/spring-kafka/docs/2.3.3.RELEASE/reference/html/
+https://docs.spring.io/spring-kafka/docs/2.3.3.RELEASE/api/
+https://github.com/spring-projects/spring-kafka
+
+spring-integration-kafka，这个是干嘛的？？？待定
+https://github.com/spring-projects/spring-integration-kafka
+https://github.com/spring-projects/spring-integration-samples/tree/master/basic/kafka
+
+springboot kafka
+https://docs.spring.io/spring-boot/docs/2.2.1.RELEASE/reference/htmlsingle/#legal
+
+spring boot集成kafka之spring-kafka深入探秘
+https://blog.csdn.net/zzpdljd1991/article/details/90794156
+
+胡夕的博客
+https://www.cnblogs.com/huxi2b/
+
+Spring-Kafka史上最强入门教程
+https://www.jianshu.com/c/0c9d83802b0c
+
+消息中间件朱小厮，欢迎支持笔者新作：《深入理解Kafka:核心设计与实践原理》和《RabbitMQ实战指南》
+https://blog.csdn.net/u013256816/category_9268265.html
+
+kafka商业环境实战系列目录，秦凯新
+https://blog.csdn.net/shenshouniu/article/details/83719129
+
+kafka
+https://blog.csdn.net/u013332124/category_9279305.html
+
+聊聊spring for kafka对consumer的封装与集成
+https://blog.csdn.net/weixin_34246551/article/details/91664457
+
+专注于大数据技术及应用，微信公众号iteblog_hadoop
+https://www.iteblog.com/archives/category/kafka/
+
+Kafka Timestamp
+https://blog.csdn.net/YHYR_YCY/article/details/86619278
+https://www.cnblogs.com/huxi2b/p/6050778.html
+
+
