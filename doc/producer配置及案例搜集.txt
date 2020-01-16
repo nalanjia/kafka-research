@@ -1,0 +1,154 @@
+-------------------------------------------------------------
+kafka_2.12-2.3.1.tgz
+http://kafka.apache.org/23/documentation.html
+Kafka 2.3 Documentation
+
+3. CONFIGURATION
+	3.3 Producer Configs
+-------------------------------------------------------------
+数一数下边的参数，一共是62个
+右边有★，表示接触过，下方会有详细介绍
+
+
+key.serializer
+value.serializer
+acks
+bootstrap.servers
+buffer.memory
+compression.type
+retries
+ssl.key.password
+ssl.keystore.location
+ssl.keystore.password
+ssl.truststore.location
+ssl.truststore.password
+batch.size
+client.dns.lookup
+client.id
+connections.max.idle.ms
+delivery.timeout.ms
+linger.ms
+max.block.ms ★
+max.request.size
+partitioner.class
+receive.buffer.bytes
+request.timeout.ms
+sasl.client.callback.handler.class
+sasl.jaas.config
+sasl.kerberos.service.name
+sasl.login.callback.handler.class
+sasl.login.class
+sasl.mechanism
+security.protocol
+send.buffer.bytes
+ssl.enabled.protocols
+ssl.keystore.type
+ssl.protocol
+ssl.provider
+ssl.truststore.type
+enable.idempotence
+interceptor.classes
+max.in.flight.requests.per.connection
+metadata.max.age.ms
+metric.reporters
+metrics.num.samples
+metrics.recording.level
+metrics.sample.window.ms
+reconnect.backoff.max.ms
+reconnect.backoff.ms
+retry.backoff.ms
+sasl.kerberos.kinit.cmd
+sasl.kerberos.min.time.before.relogin
+sasl.kerberos.ticket.renew.jitter
+sasl.kerberos.ticket.renew.window.factor
+sasl.login.refresh.buffer.seconds
+sasl.login.refresh.min.period.seconds
+sasl.login.refresh.window.factor
+sasl.login.refresh.window.jitter
+ssl.cipher.suites
+ssl.endpoint.identification.algorithm
+ssl.keymanager.algorithm
+ssl.secure.random.implementation
+ssl.trustmanager.algorithm
+transaction.timeout.ms
+transactional.id
+
+
+-------------------------------------------------------------
+【接触过的参数】max.block.ms
+按官网的说法，该参数有两个场景，buffer is full or metadata unavailable
+
+1。偶先来描述metadata unavailable的场景
+在application.properties，假如你故意配错broker地址，比如你配置为
+spring.kafka.bootstrap-servers=62.234.119.66:1000
+但是1000端口有防火墙，根本没开。此时你去生产消息kafkaTemplate.send(topicName, msg)
+会得到报错Topic xxx not present in metadata after 60000 ms.
+max.block.ms，默认值就是60秒。怎么定位到max.block.ms的？
+偶是先把kafka-clients-2.3.1-sources.jar源码解压出来，然后去搜索not present in metadata after，
+一下就搜到了，在KafkaProducer.java里，查看上下代码，就能最终定位到定位到max.block.ms了
+所以，在application.properties中，配置
+spring.kafka.producer.max-block-ms=4000
+但是注意咯，springboot的KafkaProperties，没有暴露max.block.ms，所以需要我们自己将KafkaProperties改改，自己暴露之
+其实，KafkaProperties暴露的参数很有限，远远少于kafka官网提供的
+想要暴露，都可以这种方式暴露，也就是去修改KafkaProperties
+
+2。至于buffer is full的场景
+是指buffer.memory的值满了。什么意思？大概你发消息，先进的地方是buffer
+然后肯定有其他线程，去buffer里取、并发送给kafka server。
+那么，进buffer快，取buffer慢，buffer自然就会有满的可能
+这个场景，还没有模拟过，以后补吧
+
+
+
+
+
+
+
+
+
+
+
+
+
+-------------------------------------------------------------
+【案例】broker宕机，之后生产的消息会怎样？
+首先，network-thread会感知到broker的宕机，检测时间间隔为3秒
+2019-12-22 01:18:32.968 {kafka-producer-network-thread | producer-1} WARN  org.apache.kafka.clients.NetworkClient.processDisconnection(NetworkClient.java:748) 
+[Producer clientId=producer-1] Connection to node 100 (/xx.xx.xx.xx:9092) could not be established. Broker may not be available.
+
+操作流程如下
+1。key设置为test1，生产消息
+2。./kafka_2.12-2.3.1/bin/kafka-run-class.sh kafka.tools.DumpLogSegments --print-data-log --files /aebiz/2_softnor/15_kafka_binary/data_kafka/topic_1p_1r-0/00000000000000000000.log
+该指令用于打印消息详情，比如key的值，可以看到test1的字样
+3。关闭kafka服务端
+4。观察生产者客户端，控制台会看到，每3秒kafka-producer-network-thread打印Broker may not be available.
+5。key设置为test2，生产消息
+6。重复2，肯定是看不到test2的。毕竟kafka都关闭了
+7。起码等待N秒之后，再启动kafka服务端
+8。重复2，能看到test2吗？
+
+-- 异步场景
+异步代码，是指future.addCallback(ListenableFutureCallback)
+第7步，120秒之后启动，test2真的丢了
+第7步，120秒之内启动，test2就还在，能成功发送
+
+-- 同步场景
+同步代码，是指future.get(10, TimeUnit.SECONDS)
+和异步场景一样，120是分水岭
+
+-- fire and forget，发送完不管结果
+和异步场景一样，120是分水岭
+
+所以，结论是，生产者代码，无论哪种写法，120秒都是分水岭。
+通常120内重启broker，这是不可能的。所以可以认为，消息真的丢了
+这个120秒，是哪里控制的呢?
+
+
+【案例】broker宕机又恢复，生产者项目要重启吗？
+不需要
+
+
+
+
+
+

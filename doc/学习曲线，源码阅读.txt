@@ -1,0 +1,100 @@
+以下是学习曲线，以及每一步能收获什么
+1。首先，你一脸懵逼，你仅仅知道kafka是干消息这行的。
+铁定不知道kafka还是个分布式流处理平台
+此时，你最想干什么？肯定在想，有谁能系统地给你说说kafka啊
+你不稀罕零散地，自己百度费劲找的帖子，所以，有这种系统地东西吗？
+答案是有，是极客时间的Kafka核心技术与实战，作者是胡夕
+胡夕牛逼了，是kafka的代码提交者之一，阅读过kafka五十万行代码的人，你服不服？
+
+Kafka核心技术与实战，音频+和音频一样的文字+小伙伴们的提问+胡夕的答疑
+有40多讲，你学完能收获什么？能从原理层面，了解kafka的方方面面
+不能收获什么？springboot如何写kafka相关代码，这方面你一点都不会收获
+
+所以，看胡夕的课，能奠定你的理论！
+
+2。理论部分解决了。实践部分，首当其冲的是kafka的环境问题
+假设你手里有一份kafka_2.12-2.3.1.tgz，咱就说这种原生的tar包，先不说docker的方式。
+围绕着这个安装包，你要做到什么，为什么这么做
+---- zookeeper的管理脚本
+查看，启动，关闭，日志。这些脚本必须有。为什么？
+你以后频繁修改参数，是要频繁重启的，没有脚本，你哭去吧
+zookeeper就用kafka自带的，版本绝对没问题
+---- kafka的管理脚本
+同理
+---- 一份启动过程的帮助文档
+如何做？官网的http://kafka.apache.org/quickstart
+就是干这个的，依托于这个，你总结出你自己的启动帮助
+为什么？这是你第1份属于自己的东西，以后遇到问题，会习惯性地来这里看看
+维护这里。所以，这里是你的发源地
+---- 查看zookeeper数据的工具
+这个偶有，但是使用的确实不多。比如docker版的maauso/zkui
+---- 查看kafka数据的工具
+这个使用的很频繁，比如kafka eagle
+
+所以，环境问题，算是基本有了
+
+3。实践部分，最终，你学会kafka是要落地到项目里的
+所以，你需要自己搭一个springboot项目
+1。springboot项目你得有，你不要去搞kafka原生的API，没见过项目这么干的
+有了项目架子，需求，你自己去想
+2。源码
+常用jar包的源码，你得有。因为你知道一个线索，需要去搜索
+你搜百度，可能没搜出有用的。那就搜源码！
+比如：
+spring-kafka，你得有吧
+kafka-client，得有吧
+spring-auto配置，得有吧
+等等其他，你认为需要的，都把源码搞出来，统一放到单独的项目里，供你查资料用
+
+至此，kafka的生态，该有的，你起码都有了
+剩下的，就是持之以恒的学习了，比如反复看胡夕的课，比如找些spring kafka的教程，
+比如顺着一个思路，去看spring-kafka的源码，以及看API。再深入，就是kafka-client，
+再深入，就是kafka本身。。。
+逐步深入吧。最终要达到什么效果呢？
+1。kafka的任何项目问题，你都能看懂，并有手段去改对
+2。性能，你有手段去优化，去排查
+3。kafka面试？到了那什么，面试是小儿科了，你那时候，手里有了巨量的积累了，已然是专家了
+再有空闲的话，去考个kafka的认证，也挺美的
+
+
+
+
+源码阅读
+org.springframework.kafka.core.KafkaAdmin
+KafkaAutoConfiguration负责初始化KafkaAdmin，KafkaAdmin负责初始化NewTopic
+
+org.apache.kafka.clients.consumer.RangeAssignor
+消费者消费分区，如何适配
+
+
+spring-boot-autoconfigure中kafka的部分
+问：ConcurrentKafkaListenerContainerFactoryConfigurer装配器做了什么？
+答：里边的configure方法，有2个参数
+ConcurrentKafkaListenerContainerFactory 监听器容器工厂B
+ConsumerFactory 消费者工厂C
+
+1。将C装配给B
+2。将配置文件中spring.kafka.listener开头的参数，装配给B
+3。将装配器自己的一些参数，装配给B
+总之一句话，就是将监听器容器工厂武装起来
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

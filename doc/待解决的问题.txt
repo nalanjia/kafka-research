@@ -1,0 +1,16 @@
+问题：kafka eagle删除了health_topic，
+http://localhost:9201/producer/healthCheck
+健康检查还能查到数量为1，因为失败才对呀？
+这个没搞清楚，只知道，重启项目，就又正确了
+说明，客户端无法及时感知服务器端主题的变化
+
+
+问题：关闭broker之后的同步场景，即send之后又get，消息真的丢了，为什么？
+如果是异步的话，消息在RecordAccumulator里，是不丢的
+
+问题：RecordAccumulator缓存了多少消息，设置之
+打印出System.out.println("失败！");就算成功了！！
+
+问题：不消费了。哪个分区不消费了？还是所属topic的所有分区，都不消费了？
+知道了消费者组，能知道监听的topic？进而知道分区消费情况？
+进而跳过？

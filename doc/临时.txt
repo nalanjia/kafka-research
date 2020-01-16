@@ -1,0 +1,11 @@
+./kafka_2.12-2.3.1/bin/kafka-console-consumer.sh --bootstrap-server 62.234.119.66:9092 --topic topic_health --group foo --from-beginning
+
+
+./kafka_2.12-2.3.1/bin/kafka-console-consumer.sh \
+--bootstrap-server 62.234.119.66:9092 \
+--group foo --from-beginning \
+--topic topic_1p_1r
+
+./kafka_2.12-2.3.1/bin/kafka-run-class.sh kafka.tools.DumpLogSegments \
+--print-data-log \
+--files /aebiz/2_softnor/15_kafka_binary/data_kafka/topic_1p_1r-0/00000000000000000000.log

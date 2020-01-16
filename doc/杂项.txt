@@ -1,0 +1,51 @@
+【问题】如何验证压缩算法真的生效了
+压缩算法，是生产者设置的
+spring.kafka.producer.compression-type=lz4
+
+方法一，在服务端，运行指令，就可以看到消息的更多信息，包含压缩算法
+./kafka_2.12-2.3.1/bin/kafka-run-class.sh kafka.tools.DumpLogSegments --files /aebiz/2_softnor/15_kafka_binary/data_kafka/topic_1p_1r-0/00000000000000000000.log --print-data-log
+
+Dumping /aebiz/2_softnor/15_kafka_binary/data_kafka/topic_1p_1r-0/00000000000000000000.log
+Starting offset: 0
+baseOffset: 0 lastOffset: 0 count: 1 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false isControl: false position: 0 CreateTime: 1576549823911 size: 104 magic: 2 compresscodec: NONE crc: 4039525721 isvalid: true
+| offset: 0 CreateTime: 1576549823911 keysize: -1 valuesize: 36 sequence: -1 headerKeys: [] payload: 2019年12月17日10时30分23秒 - 0
+baseOffset: 1 lastOffset: 1 count: 1 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false isControl: false position: 104 CreateTime: 1576552306611 size: 104 magic: 2 compresscodec: NONE crc: 2785711173 isvalid: true
+| offset: 1 CreateTime: 1576552306611 keysize: -1 valuesize: 36 sequence: -1 headerKeys: [] payload: 2019年12月17日11时11分21秒 - 1
+baseOffset: 2 lastOffset: 2 count: 1 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false isControl: false position: 208 CreateTime: 1576552448051 size: 104 magic: 2 compresscodec: NONE crc: 1438953577 isvalid: true
+| offset: 2 CreateTime: 1576552448051 keysize: -1 valuesize: 36 sequence: -1 headerKeys: [] payload: 2019年12月17日11时13分38秒 - 2
+baseOffset: 3 lastOffset: 3 count: 1 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false isControl: false position: 312 CreateTime: 1576554929937 size: 119 magic: 2 compresscodec: LZ4 crc: 1457780118 isvalid: true
+| offset: 3 CreateTime: 1576554929937 keysize: -1 valuesize: 36 sequence: -1 headerKeys: [] payload: 2019年12月17日11时55分29秒 - 0
+baseOffset: 4 lastOffset: 4 count: 1 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false isControl: false position: 431 CreateTime: 1576562374197 size: 116 magic: 2 compresscodec: ZSTD crc: 548283196 isvalid: true
+| offset: 4 CreateTime: 1576562374197 keysize: -1 valuesize: 36 sequence: -1 headerKeys: [] payload: 2019年12月17日13时59分34秒 - 0
+baseOffset: 5 lastOffset: 5 count: 1 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false isControl: false position: 547 CreateTime: 1576562652403 size: 127 magic: 2 compresscodec: GZIP crc: 4010312693 isvalid: true
+| offset: 5 CreateTime: 1576562652403 keysize: -1 valuesize: 36 sequence: -1 headerKeys: [] payload: 2019年12月17日14时04分12秒 - 0
+baseOffset: 6 lastOffset: 6 count: 1 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false isControl: false position: 674 CreateTime: 1576579433196 size: 116 magic: 2 compresscodec: ZSTD crc: 1491546167 isvalid: true
+| offset: 6 CreateTime: 1576579433196 keysize: -1 valuesize: 36 sequence: -1 headerKeys: [] payload: 2019年12月17日18时42分13秒 - 0
+baseOffset: 7 lastOffset: 7 count: 1 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false isControl: false position: 790 CreateTime: 1576579529427 size: 119 magic: 2 compresscodec: LZ4 crc: 3707220827 isvalid: true
+| offset: 7 CreateTime: 1576579529427 keysize: -1 valuesize: 36 sequence: -1 headerKeys: [] payload: 2019年12月17日18时45分13秒 - 0
+baseOffset: 8 lastOffset: 8 count: 1 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false isControl: false position: 909 CreateTime: 1576632317546 size: 126 magic: 2 compresscodec: SNAPPY crc: 3485329680 isvalid: true
+| offset: 8 CreateTime: 1576632317546 keysize: -1 valuesize: 36 sequence: -1 headerKeys: [] payload: 2019年12月18日09时25分17秒 - 0
+
+注意里边的compresscodec，就是压缩算法
+
+方法二，在客户端，生产者的项目，要把日至相关的pom.xml调对
+因为kafka-client只不支持logback，所以把logback排除掉
+引入log4j2，具体做法，看偶的pom.xml吧
+只要你启动项目时，能看到org.apache.kafka下的日志，就算成功了
+生产消息时，会打印出ProducerConfig所有的配置值，比如咱们关心的
+acks = 1
+compression.type = zstd
+enable.idempotence = false
+等等，全部都会打印出来
+
+
+
+
+
+
+
+
+
+
+
+
