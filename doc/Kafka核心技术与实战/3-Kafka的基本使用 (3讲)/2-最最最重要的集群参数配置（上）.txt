@@ -1,0 +1,654 @@
+你好，我是胡夕。今天我想和你聊聊最最最重要的 Kafka 集群配置。我这里用了 3 个“最”字并非哗众取宠，而是因为有些配置的重要性并未体现在官方文档中，并且从实际表现看，很多参数对系统的影响要比从文档上看更加明显，因此很有必要集中讨论一下。
+
+我希望通过两期内容把这些重要的配置讲清楚。严格来说这些配置并不单单指 Kafka 服务器端的配置，其中既有 Broker 端参数，也有主题（后面我用我们更熟悉的 Topic 表示）级别的参数、JVM 端参数和操作系统级别的参数。
+
+需要你注意的是，这里所说的 Broker 端参数也被称为静态参数（Static Configs）。我会在专栏后面介绍与静态参数相对应的动态参数。所谓静态参数，是指你必须在 Kafka 的配置文件 server.properties 中进行设置的参数，不管你是新增、修改还是删除。同时，你必须重启 Broker 进程才能令它们生效。而主题级别参数的设置则有所不同，Kafka 提供了专门的 kafka-configs 命令来修改它们。至于 JVM 和操作系统级别参数，它们的设置方法比较通用化，我介绍的也都是标准的配置参数，因此，你应该很容易就能够对它们进行设置。
+
+下面我先从 Broker 端参数说起。
+
+Broker 端参数
+
+目前 Kafka Broker 提供了近 200 个参数，这其中绝大部分参数都不用你亲自过问。当谈及这些参数的用法时，网上的文章多是罗列出一些常见的参数然后一个一个地给出它们的定义，事实上我以前写文章时也是这么做的。不过今天我打算换个方法，按照大的用途类别一组一组地介绍它们，希望可以更有针对性，也更方便你记忆。
+
+首先 Broker 是需要配置存储信息的，即 Broker 使用哪些磁盘。那么针对存储信息的重要参数有以下这么几个：
+
+log.dirs：这是非常重要的参数，指定了 Broker 需要使用的若干个文件目录路径。要知道这个参数是没有默认值的，这说明什么？这说明它必须由你亲自指定。
+log.dir：注意这是 dir，结尾没有 s，说明它只能表示单个路径，它是补充上一个参数用的。
+
+这两个参数应该怎么设置呢？很简单，你只要设置log.dirs，即第一个参数就好了，不要设置log.dir。而且更重要的是，在线上生产环境中一定要为log.dirs配置多个路径，具体格式是一个 CSV 格式，也就是用逗号分隔的多个路径，比如/home/kafka1,/home/kafka2,/home/kafka3这样。如果有条件的话你最好保证这些目录挂载到不同的物理磁盘上。这样做有两个好处：
+
+提升读写性能：比起单块磁盘，多块物理磁盘同时读写数据有更高的吞吐量。
+能够实现故障转移：即 Failover。这是 Kafka 1.1 版本新引入的强大功能。要知道在以前，只要 Kafka Broker 使用的任何一块磁盘挂掉了，整个 Broker 进程都会关闭。但是自 1.1 开始，这种情况被修正了，坏掉的磁盘上的数据会自动地转移到其他正常的磁盘上，而且 Broker 还能正常工作。还记得上一期我们关于 Kafka 是否需要使用 RAID 的讨论吗？这个改进正是我们舍弃 RAID 方案的基础：没有这种 Failover 的话，我们只能依靠 RAID 来提供保障。
+
+下面说说与 ZooKeeper 相关的设置。首先 ZooKeeper 是做什么的呢？它是一个分布式协调框架，负责协调管理并保存 Kafka 集群的所有元数据信息，比如集群都有哪些 Broker 在运行、创建了哪些 Topic，每个 Topic 都有多少分区以及这些分区的 Leader 副本都在哪些机器上等信息。
+
+Kafka 与 ZooKeeper 相关的最重要的参数当属zookeeper.connect。这也是一个 CSV 格式的参数，比如我可以指定它的值为zk1:2181,zk2:2181,zk3:2181。2181 是 ZooKeeper 的默认端口。
+
+现在问题来了，如果我让多个 Kafka 集群使用同一套 ZooKeeper 集群，那么这个参数应该怎么设置呢？这时候 chroot 就派上用场了。这个 chroot 是 ZooKeeper 的概念，类似于别名。
+
+如果你有两套 Kafka 集群，假设分别叫它们 kafka1 和 kafka2，那么两套集群的zookeeper.connect参数可以这样指定：zk1:2181,zk2:2181,zk3:2181/kafka1和zk1:2181,zk2:2181,zk3:2181/kafka2。切记 chroot 只需要写一次，而且是加到最后的。我经常碰到有人这样指定：zk1:2181/kafka1,zk2:2181/kafka2,zk3:2181/kafka3，这样的格式是不对的。
+
+第三组参数是与 Broker 连接相关的，即客户端程序或其他 Broker 如何与该 Broker 进行通信的设置。有以下三个参数：
+
+listeners：学名叫监听器，其实就是告诉外部连接者要通过什么协议访问指定主机名和端口开放的 Kafka 服务。
+
+advertised.listeners：和 listeners 相比多了个 advertised。Advertised 的含义表示宣称的、公布的，就是说这组监听器是 Broker 用于对外发布的。
+
+host.name/port：列出这两个参数就是想说你把它们忘掉吧，压根不要为它们指定值，毕竟都是过期的参数了。
+
+我们具体说说监听器的概念，从构成上来说，它是若干个逗号分隔的三元组，每个三元组的格式为<协议名称，主机名，端口号>。这里的协议名称可能是标准的名字，比如 PLAINTEXT 表示明文传输、SSL 表示使用 SSL 或 TLS 加密传输等；也可能是你自己定义的协议名字，比如CONTROLLER: //localhost:9092。
+
+一旦你自己定义了协议名称，你必须还要指定listener.security.protocol.map参数告诉这个协议底层使用了哪种安全协议，比如指定listener.security.protocol.map=CONTROLLER:PLAINTEXT表示CONTROLLER这个自定义协议底层使用明文不加密传输数据。
+
+至于三元组中的主机名和端口号则比较直观，不需要做过多解释。不过有个事情你还是要注意一下，经常有人会问主机名这个设置中我到底使用 IP 地址还是主机名。这里我给出统一的建议：最好全部使用主机名，即 Broker 端和 Client 端应用配置中全部填写主机名。 Broker 源代码中也使用的是主机名，如果你在某些地方使用了 IP 地址进行连接，可能会发生无法连接的问题。
+
+第四组参数是关于 Topic 管理的。我来讲讲下面这三个参数：
+
+auto.create.topics.enable：是否允许自动创建 Topic。
+unclean.leader.election.enable：是否允许 Unclean Leader 选举。
+auto.leader.rebalance.enable：是否允许定期进行 Leader 选举。
+
+我还是一个个说。
+
+auto.create.topics.enable参数我建议最好设置成 false，即不允许自动创建 Topic。在我们的线上环境里面有很多名字稀奇古怪的 Topic，我想大概都是因为该参数被设置成了 true 的缘故。
+
+你可能有这样的经历，要为名为 test 的 Topic 发送事件，但是不小心拼写错误了，把 test 写成了 tst，之后启动了生产者程序。恭喜你，一个名为 tst 的 Topic 就被自动创建了。
+
+所以我一直相信好的运维应该防止这种情形的发生，特别是对于那些大公司而言，每个部门被分配的 Topic 应该由运维严格把控，决不能允许自行创建任何 Topic。
+
+第二个参数unclean.leader.election.enable是关闭 Unclean Leader 选举的。何谓 Unclean？还记得 Kafka 有多个副本这件事吗？每个分区都有多个副本来提供高可用。在这些副本中只能有一个副本对外提供服务，即所谓的 Leader 副本。
+
+那么问题来了，这些副本都有资格竞争 Leader 吗？显然不是，只有保存数据比较多的那些副本才有资格竞选，那些落后进度太多的副本没资格做这件事。
+
+好了，现在出现这种情况了：假设那些保存数据比较多的副本都挂了怎么办？我们还要不要进行 Leader 选举了？此时这个参数就派上用场了。
+
+如果设置成 false，那么就坚持之前的原则，坚决不能让那些落后太多的副本竞选 Leader。这样做的后果是这个分区就不可用了，因为没有 Leader 了。反之如果是 true，那么 Kafka 允许你从那些“跑得慢”的副本中选一个出来当 Leader。这样做的后果是数据有可能就丢失了，因为这些副本保存的数据本来就不全，当了 Leader 之后它本人就变得膨胀了，认为自己的数据才是权威的。
+
+这个参数在最新版的 Kafka 中默认就是 false，本来不需要我特意提的，但是比较搞笑的是社区对这个参数的默认值来来回回改了好几版了，鉴于我不知道你用的是哪个版本的 Kafka，所以建议你还是显式地把它设置成 false 吧。
+
+第三个参数auto.leader.rebalance.enable的影响貌似没什么人提，但其实对生产环境影响非常大。设置它的值为 true 表示允许 Kafka 定期地对一些 Topic 分区进行 Leader 重选举，当然这个重选举不是无脑进行的，它要满足一定的条件才会发生。严格来说它与上一个参数中 Leader 选举的最大不同在于，它不是选 Leader，而是换 Leader！比如 Leader A 一直表现得很好，但若auto.leader.rebalance.enable=true，那么有可能一段时间后 Leader A 就要被强行卸任换成 Leader B。
+
+你要知道换一次 Leader 代价很高的，原本向 A 发送请求的所有客户端都要切换成向 B 发送请求，而且这种换 Leader 本质上没有任何性能收益，因此我建议你在生产环境中把这个参数设置成 false。
+
+最后一组参数是数据留存方面的，即：
+
+log.retention.{hours|minutes|ms}：这是个“三兄弟”，都是控制一条消息数据被保存多长时间。从优先级上来说 ms 设置最高、minutes 次之、hours 最低。
+log.retention.bytes：这是指定 Broker 为消息保存的总磁盘容量大小。
+message.max.bytes：控制 Broker 能够接收的最大消息大小。
+
+先说这个“三兄弟”，虽然 ms 设置有最高的优先级，但是通常情况下我们还是设置 hours 级别的多一些，比如log.retention.hours=168表示默认保存 7 天的数据，自动删除 7 天前的数据。很多公司把 Kafka 当做存储来使用，那么这个值就要相应地调大。
+
+其次是这个log.retention.bytes。这个值默认是 -1，表明你想在这台 Broker 上保存多少数据都可以，至少在容量方面 Broker 绝对为你开绿灯，不会做任何阻拦。这个参数真正发挥作用的场景其实是在云上构建多租户的 Kafka 集群：设想你要做一个云上的 Kafka 服务，每个租户只能使用 100GB 的磁盘空间，为了避免有个“恶意”租户使用过多的磁盘空间，设置这个参数就显得至关重要了。
+
+最后说说message.max.bytes。实际上今天我和你说的重要参数都是指那些不能使用默认值的参数，这个参数也是一样，默认的 1000012 太少了，还不到 1MB。实际场景中突破 1MB 的消息都是屡见不鲜的，因此在线上环境中设置一个比较大的值还是比较保险的做法。毕竟它只是一个标尺而已，仅仅衡量 Broker 能够处理的最大消息大小，即使设置大一点也不会耗费什么磁盘空间的。
+
+小结
+
+再次强调一下，今天我和你分享的所有参数都是那些要修改默认值的参数，因为它们的默认值不适合一般的生产环境。当然，我并不是说其他 100 多个参数就不重要。事实上，在专栏的后面我们还会陆续提到其他的一些参数，特别是那些和性能息息相关的参数。所以今天我提到的所有参数，我希望作为一个最佳实践给到你，可以有的放矢地帮助你规划和调整你的 Kafka 生产环境。
+【2-配图-最最最重要的集群参数配置.jpg】
+
+开放讨论
+除了今天我分享的这些参数，还有哪些参数是你认为比较重要而文档中没有提及的？你曾踩过哪些关于参数配置的“坑”？欢迎提出来与我和大家一起讨论。
+
+欢迎你写下自己的思考或疑问，我们一起讨论。如果你觉得有所收获，也欢迎把文章分享给你的朋友。
+
+精选留言(63)
+
+
+草帽路飞
+老师 advertised.listeners 这个配置能否再解释一下。感觉配置了 listeners之后就不用配置这个了呀？
+作者回复: advertised.listeners主要是为外网访问用的。如果clients在内网环境访问Kafka不需要配置这个参数。
+
+常见的玩法是：你的Kafka Broker机器上配置了双网卡，一块网卡用于内网访问（即我们常说的内网IP）；另一个块用于外网访问。那么你可以配置listeners为内网IP，advertised.listeners为外网IP。
+2019-06-18
+
+4
+
+33
+
+QQ怪
+老师帮我们讲讲这个参数吧auto.offset.reset，我有时候删除一个topic时会导致offset异常，出现重复消费问题，不知道跟这个参数有没有关系？？
+作者回复: 不太懂“删除topic后还出现重复消费”是什么意思？删完了还要继续消费它吗？
+
+当consumer启动后它会从Kafka读取它上次消费的位移。情况1： 如果 Kafka broker端没有保存这个位移值，那么consumer会看auto.offset.reset的脸色
+情况2：consumer拿到位移值开始消费，如果后面发现它要读取消息的位移在Kafka中不存在（可能对应的消息已经被删除了），那么它也会看auto.offset.reset的脸色
+情况3：除以上这两种情况之外consumer不会再顾忌auto.offset.reset的值
+
+怎么看auto.offset.reset的脸色呢？简单说就是earliest从头消息；latest从当前新位移处消费。
+2019-06-18
+
+
+7
+
+不了峰
+请教老师
+gg.handler.kafkahandler.Mode = tx
+gg.handler.kafkahandler.Mode = op
+这两个的差别。我们遇到时 dml 数据会丢失的情况。用的是 op 。
+谢谢
+作者回复: 搜了一下，像是Oracle GoldenGate Kafka Adapter的参数。我没有用过，从文档中看这两者的区别是：当设置成op单个数据库表的变更（插入、更新、删除）会被当成一条Kafka消息发送；当设置成tx时，数据库事务所做的所有变更统一被封装进一条Kafka消息，并在事务提交后被发送。
+
+显然，后者有事务性的保障，至少有原子性方面的保证，不会丢失部分CDC数据。
+2019-06-18
+
+
+7
+
+小头针
+胡老师，我在kafka升级过程中遇到过这样的问题，就是升级后的Kafka与之前的Kafka 的配置完全一样，就是版本不一样了。但是5个Broker后，Kafka Manager工具中，只有1个Broker有数据进入进出。后来同时添加了以下4个参数：
+rebalance.max.retries=4
+auto.leader.rebalance.enable=true
+leader.imbalance.check.interval.seconds=300
+leader.imbalance.per.broker.percentage=10
+再重启Kafka，5个Broker都有数据进入进出，但是我不清楚这到底是哪个参数起到了决定性的作用。其中就有老师讲的auto.leader.rebalance.enable这个参数，但是我这里设置的是true？
+作者回复: 只有一个broker有数据进出，我猜是因为这样的原因：1. 首先你的主题分区副本数是1；2. 在你升级的过程中所有分区的Leader副本都变更到了同一台broker上。
+
+后面开启了auto.leader.rebalance.enable=true之后它定期将Leader副本分散到不同broker上了。
+2019-06-24
+
+1
+
+4
+
+李 P
+和本节无关，消息队列重复消费问题有什么太好的办法吗？我们现在的做法是把offset和消费后的计算结果一并保存在业务系统中，有没有更好的做法
+作者回复: 可以试试Kafka 0.11引入的事务
+2019-06-19
+
+
+4
+
+趙衍
+老师好！关于Unclean这个参数，将其设置为false之后，就意味着如果ISR内的所有broker都宕机，那么这个分区就不可用了。
+刚好我前几天看到饶军在2013年的一次报告上讲到Kafka在CAP问题上的取舍，他说，因为Kafka是部署在一个DataCenter中的，而一个DataCenter很少会出现Partitioning的情况，所以Kafka放弃了分区容忍性。
+我想问的是，Kafka舍弃了分区容忍性这一点是否可以体现在社区默认将Unclean设置为false上呢？
+附上报告的地址：https://www.youtube.com/watch?v=XcvHmqmh16g
+关于CAP的取舍出现在21:50左右的地方。谢谢老师！
+作者回复: 首先，CAP理论有很多有歧义的地方，我很好奇为什么国内很多人追捧CAP，其实对于分布式系统而言，很多一致性问题都是CAP覆盖不了的。
+其次，我个人觉得饶大神并不是说Kafka放弃了P，其实Kafka是依托于ZooKeeper以及合理配置minIsr等参数来规避脑裂的。
+第三，我翻看了社区对此提案的讨论，变更为false就是很朴素的思想：用户在默认情况下可能更加关心数据一致性，不想数据丢失。如果用户想要更高的可用性，手动调整即可。你可以看看社区对此问题的讨论：https://www.mail-archive.com/dev@kafka.apache.org/msg63086.html
+2019-06-18
+
+
+4
+
+kaiux
+👍，相当于把Kafka里面的一些坑预先告诉了我们。
+2019-06-24
+
+
+2
+
+Geek_edc612
+胡老师您好，我对这两个参数有些疑问：
+（1）auto.leader.rebalance.enable 这个值设置为true，那么您说的定期重新选举，应该有个触发的条件吧？我刚才跟同事沟通过，他说是跟每台broker的leader数量有关，如果leader分布不均衡就会触发重新选举leader，但是感觉说的还是不够具体，您能给解答下吗，感谢
+（2）log.retention.bytes这个参数，您说的对于总磁盘容量来说，那我这样理解您看正确不（极端情况）---这个值我设置为100G，我机器有3个磁盘，每个磁盘大小1T，每个磁盘有不同topic的partition且，如果一个租户恶意写数据到自己的topic，造成某块磁盘的partition大小为100G，那么这台broker是不是所有topic都无法继续写入数据了？劳烦您解答下，感谢
+
+作者回复: 1. 的确是有个比例，要超过这个比例才会触发preferred leader选举。这个比例由broker端参数leader.imbalance.per.broker.percentage控制，默认是10%。举个例子，如果一个broker上有10个分区，有2个分区的leader不是preferred leader，那么就会触发
+
+2. 没太明白为什么写到100GB，broker就不能继续写入了？
+2019-06-19
+
+2
+
+2
+
+mickle
+老师，对于磁盘坏掉以后转移到其他磁盘的机制，我有点疑问，如果已经坏掉，则不可读了，那么是不是只能从副本去转移了，如果从副本转移那就有可能会丢失部分最新的数据吧？
+作者回复: 不会啊，broker会重建副本，然后走正常的同步机制：从leader处拉取数据。
+2019-06-18
+
+4
+
+2
+
+大牛凯
+老师好，请问unclean.leader.election.enable设置为false之后，如果leader副本挂掉了那这个分区就无法使用了，是不是意味数据会丢失呢？
+作者回复: leader挂掉了Kafka会从ISR剩下的副本中选择一个当leader，但如果ISR也没有副本了，leader就选不出来了。如果设置unclean.leader.election.enable=true，则允许Kafka从那些不在ISR但依然存活的副本中选择一个出来当leader。此时是有数据丢失的风险的
+2019-09-18
+
+
+1
+
+Geek_b809ff
+[2019-08-21 20:25:24,619] WARN [Producer clientId=console-producer] Error while fetching metadata with correlation id 57 : {test=LEADER_NOT_AVAILABLE} (org.apache.kafka.clients.NetworkClient)
+
+老师，请教一下，这个错误是什么参数配置错了导致的呢？
+作者回复: 如果只是偶尔抛出不用管，通常是因为没有找到对应的主题所致。不是参数配置错导致
+2019-08-21
+
+
+1
+
+李跃爱学习
+没有这种 Failover 的话，我们只能依靠 RAID 来提供保障
+— 这个说法我觉得不是很妥当。我们不用RAID应该是具备足够的 replica 吧，和Failover没有必然联系
+2019-07-16
+
+
+1
+
+henry
+老师，最近别人问我一个问题，假如现有集群已经有3个分区，动态添加两个分区, 原有的分区会迁移数据到新增的分区吗？
+作者回复: 不会。已有数据将一直“躺在”原有分区中。
+2019-06-19
+
+1
+
+1
+
+Liam
+请问老师，坏掉的数据是怎么自动转移到其他磁盘上的呢？
+作者回复: 可能有点没说清楚。
+
+1. Broker自动在好的路径上重建副本，然后从leader同步；
+2. Kafka支持工具能够将某个路径上的数据拷贝到其他路径上
+2019-06-19
+
+
+1
+
+你看起来很好吃
+'如果设置成 false，那么就坚持之前的原则，坚决不能让那些落后太多的副本竞选 Leader。'想问一下老师，每个partition的副本保存的数据不是应该和leader是一模一样的吗？为什么会有丢失的？
+作者回复: 它们是异步拉取消息的，必然有一个时间窗口导致它和leader中的数据是不一致的，或者说它是落后于leader的。
+2019-06-18
+
+
+1
+
+南辕北辙
+刚用的时候大一点的消息就有问题，后来知道是message.max.bytes,不过老师是不是打错单位了，记得是900多KB。今天干货很多
+作者回复: 感谢反馈，sorry，笔误了:(
+2019-06-18
+
+
+1
+
+Geek_jacky
+老师好，如果磁盘坏掉了，这些数据是什么机制读取到其他磁盘上的呢？不是都坏了吗？不应该读取其他副本中的数据了吗？这个磁盘上的数据就算是丢失了吗？
+作者回复: Broker会在好的目录上重建副本。另外Kafka也提供了工具将某块磁盘上的数据直接搬移到另一个磁盘上，毕竟磁盘坏了也不是不能修好：）
+2019-06-18
+
+
+1
+
+bunny
+后面会单独讲解producer，consumer相关配置参数吧？还有这个参数delete.topic.enable，胡老师有什么建议么？
+作者回复: 后面讲到producer和consumer会有涉及，但不会专门来讲，毕竟很多人反映单纯讲配置参数太枯燥了，还是结合具体的使用场景来讲比较好。另外建议delete.topic.enable保持默认值true就好，毕竟不能删除topic总显得不太方便。只是要注意权限设置即可，不可能 让任何人都能有删除topic的权限。
+2019-06-18
+
+
+1
+
+Welliam.Cao
+
+接我上个问题的错误日志，麻烦帮忙指点一下：
+state-change.log日志出现错误日志
+[2019-11-05 11:08:50,508] ERROR [Controller id=2 epoch=5] Controller 2 epoch 5 failed to change state for partition xxxxx-37 from OnlinePartition to OnlinePartition (state.change.logger)
+[2019-11-05 11:08:50,510] ERROR [Controller id=2 epoch=5] Controller 2 epoch 5 failed to change state for partition xxxxx-7 from OnlinePartition to OnlinePartition (state.change.logger)
+server.log里面刷Shrinking/Expanding日志，没有错误日志
+[2019-11-05 11:08:47,630] INFO [Partition xxxxx-3 broker=2] Shrinking ISR from 2,3,4 to 2,3 (kafka.cluster.Partition)
+[2019-11-05 11:08:52,745] INFO [Partition xxxxx-60 broker=2] Expanding ISR from 2,3 to 2,3,4 (kafka.cluster.Partition)
+作者回复: 从日志上来看可以看一下broker 4的连接状态是否正常，其他问题暂时还无法从日志中看出来
+2019-11-11
+
+
+
+hunterlodge
+“坚决不能让那些落后太多的副本竞选 Leader”，请问落后多少算是太多呢？谢谢
+作者回复: 这个取决于broker端参数replica.lag.time.max.ms的取值
+2019-11-10
+
+
+
+Welliam.Cao
+老师请教一下，我们线上的kafka集群state-change.log日志会不定期出现下面这种日志，导致生产者会生产消息超时，不知道是不是跟auto.leader.rebalance.enable这个参数有关，请问如果避免出现这类日志。
+TRACE [Broker id=0] Cached leader info PartitionState(controllerEpoch=5, leader=3, leaderEpoch=12, isr=[3, 4, 0], zkVersion=25, replicas=[3, 4, 0], offlineReplicas=[]) for partition xxxxxxx-14 in response to UpdateMetadata request sent by controller 2 epoch 5 with correlation id 483 (state.change.logger)
+作者回复: 这是在异步更新每个broker上的元数据缓存时打出的TRACE，单凭这个日志看不出任何的异常，还是要结合其他的日志（特别是Error日志）来定位原因。
+
+2019-11-05
+
+1
+
+
+狮子歌歌
+log.retention.hour 这个参数应该是 log.retention.hours 吧，少了个 s
+作者回复: 嗯嗯，感谢指正，应该是log.retention.hours
+2019-10-30
+
+
+
+pain
+对 listeners 还是不明白。我在虚拟机里面启动了 kafka server ，然后再宿主机用 java client 去访问。如果在 listener 中指定了 hostname 就无法连接，如果不指定就可以连接，这是为啥啊
+作者回复: 你的hostname在宿主机可以正确解析吗？
+2019-10-22
+
+1
+
+
+jc9090kkk
+感谢老师分享，对于broker来讲，
+1.broker.id这个参数应该也是必要的吧，为了以后集群好管理做准备。
+2.log.flush.interval.messages和log.flush.interval.ms，这两个参数如果设置过小或者不合理的话，对IO也有一定影响的吧？
+公司项目用kafka的时候还真的踩过坑，就是topic自动创建的配置，刚开始是默认开启的并且当时为了需求快速上线，没有配置kafka的测试环境，后面运维同学在维护的时候发现生产环境各种乱七八糟的topic都有，而且在用可视化管理工具打开的时候，就很卡，最后做清理的时候需要跟业务部门一个一个做确认，防止删除topic后数据丢失，特别麻烦，好在当时是kafka刚开始用不久，里面的topic数量特别多，否则处理起来更棘手，最后把这个参数关掉了。
+2019-09-20
+
+
+
+小北
+反反复复听了很多遍，老师请教一个问题。我是用docker启动的kafka，把参数listeners 设置为宿主机IP，就会报以下问题。ERROR [KafkaServer id=1001] Fatal error during KafkaServer startup. Prepare to shutdown (kafka.server.KafkaServer)
+org.apache.kafka.common.KafkaException: Socket server failed to bind to 192.168.100.20:9092: Address not available.
+，但是设置为PLAINTEXT://:9092 内网的其他机器又无法访问。请问是不是我哪里做的不对。谢谢
+作者回复: 显式设置上主机名吧
+2019-08-30
+
+1
+
+
+无情剃刀
+“坏掉的磁盘上的数据会自动地转移到其他正常的磁盘上，而且 Broker 还能正常工作。”磁盘都坏啦，还能转移？
+作者回复: 等恢复了再转移
+2019-08-18
+
+
+
+未名之殇
+老师好，kafka版本用的0.9.0.1，一个topic占用15个broker，32个分区
+使用8个logstash进程进行消费，每个进程配置4个线程，消费时经常出现Rebalance，请帮我看下参数是不是有不合理的地方。
+kafka相关参数如下：
+    session_timeout_ms => "30000"
+    request_timeout_ms => "40000"
+    heartbeat_interval_ms => "10000"
+    max_partition_fetch_bytes => "10485760"
+    decorate_events => true
+    auto_commit_interval_ms => "60000"
+    poll_timeout_ms => 1000
+2019-08-15
+
+
+
+大雄
+关于broker有些不明白的地方想请教胡老师
+
+1.broker配置参数中，可配置多个log.dirs路径,log.dirs配置的文件夹中存放的实体文件主要为topic的partition文件，dirs文件夹放在多个物理盘上能够提高读写速度，这里的dirs配置的文件夹是与topic对应？还是与partition对应？也即同一个topic所有partition放在同一个dirs目录中，一个broker中不同磁盘放不同的多个topic增加读写速度，还是一个topic可以跨多个dirs中配置的文件夹，将同一个topic的不同partition分散在不同dirs中提高读写速度，不知道哪个理解正确还是都不正确？
+
+
+
+2.如果partition或topic可分散放于不同dirs中，这一步是需要手动配置还是broker会根据dirs数量自动将partition或topic分配到不同dirs文件夹中？
+
+3.假如我的服务器（一台服务器为一个broker）有两个磁盘，每个磁盘很小只有100g，topic和partition都为1并且不设following，log.dirs中设置了两个硬盘的路径，整体都先放在第一个磁盘上运行，log.retention.bytes如果设为-1,可用全磁盘容量，如果其中一个物理磁盘满了的话，broker会自动在第二快磁盘上开始写么？还是直接就报异常了？
+
+这三个问题有些交叉，主要是自己理不顺这里的关系，还望胡老师能给解惑，多谢。
+
+2019-08-13
+
+
+
+godtrue
+目前还有用过kafka，先打卡，回头使用了，再回头看一下。
+作者回复: 嗯嗯，最好结合实际项目学习，这样快得多：）
+2019-08-12
+
+
+
+everhythm
+message.max.bytes 设置broker 和 client 各有一份，如果client 发送超过设定大小的msg ，broker的处理方式是怎样的？
+
+之前碰到过 broker直接断开连接（client用的librdkafka ，从callback看broker status直接变成down，然后消息堆积，重连client才可用）
+作者回复: broker端会抛出异常
+2019-08-03
+
+
+
+wykkx
+老师 我三个节点的kafka集群，当min.insync.replicas=1设置为1的时候消费者可以正常消费数据，但是当这个值改为2的时候，消费者就收不到数据了。这是什么问题啊？
+其他主要参数：
+replica.fetch.max.bytes=10020000
+message.max.bytes=10000000
+auto.leader.rebalance.enable=false
+unclean.leader.election.enable=false
+request.required.acks=-1
+default.replication.factor=3
+message.send.max.retries=5
+auto.create.topics.enable=false
+这个问题搞了好几天了，也没搞明白，麻烦老师给看下，谢谢
+2019-07-23
+
+
+
+老鱼
+老师，一般是什么原因导致的unclean replica
+作者回复: 所有副本落后leader太多，常见的可能是leader自己是不是有问题了。。。
+2019-07-20
+
+
+
+JackJin
+胡老师：
+    什么情况下，kafka会丢失数据，及怎么做才能不让数据丢失
+作者回复: 后面有专门介绍如何避免数据丢失的配置：）
+2019-07-19
+
+
+
+-W.LI-
+老师好，kafka的零拷贝原理后面会讲么?
+2019-07-16
+
+
+
+风轻扬
+老师，对于failover机制，kafka会新建副本，从leader处同步最新的数据给新建副本。如果坏掉的盘是leader持久化的盘呢？
+作者回复: 那就先选举新的leader。
+2019-07-10
+
+
+
+mellow
+auto.leader.rebalance.enable设置为false之后，当集群中一些节点down，此时leader就会转移到其他节点上去，重启之后如果不触发leader balance的话不就会导致leader在同一节点上吗，请求都打到该节点，达不到负载均衡，望老师解答一下
+作者回复: 线上环境自动迁移大批量分区的leader，对业务影响很大。运维手动介入比较保险。
+2019-07-02
+
+
+
+小鱼
+老师你好，请问num.partitions个数一般建议设置为多少个，是和broker的个数一致吗？提高partitions的个数，能增加消费者的消费速度吗？
+作者回复: num.partitions是自动创建topic的分区数。其实我觉得运维良好的集群应该禁掉自动创建topic，所有topic全部有运维手动创建好。所以理论上这个参数应该用不上。不过你的问题和如何评估分区数是相同的，基本上要结合你的SLA加上性能测试来共同决定。
+2019-07-02
+
+
+
+与狼共舞
+老师，请教一个关于内外网设置方面的问题。如果每个broker节点的 advertised.listeners都设置为外网IP，这样一来，假设集群有多个 broker节点，是不是得要有多个外网ip？ 而外网ip这个资源比较有限，有没有更好的方法呢？
+作者回复: 如果你的client只能通过外网IP访问具体的broker，那么broker只能设置外网IP
+2019-06-29
+
+1
+
+
+王纪娟
+你好，我目前在用0.10.2版本，实际用下来log.retention.bytes限定的是每个topic的每个分区的最大存储，但其实还可能超，因为还跟reflush 的间隔有关，同时我观察到kafka在写的时候会单独再开一个segment。所以某个时间点topic的实际存储可能大过配置值
+作者回复: 它的算法比较复杂，不是简单的不超过就行了。有兴趣的话可以看下我写的这篇文章：https://www.cnblogs.com/huxi2b/p/8042099.html
+2019-06-27
+
+
+
+非礼勿言-非礼勿听-非礼勿视
+竟然不能回复。老师，之前用的是0.11版本的，就是消费者处理消息如果时间过长的话，会长期阻塞在poll方法上，无法继续消费新的消息
+作者回复: “消费者处理消息如果时间过长” 为什么会阻塞在poll方法上呢？应该是阻塞在处理方法中吧？我觉得一个可能的原因是处理时间过长导致的频繁rebalance。看看日志是否存在频繁rebalance的情况。
+2019-06-27
+
+
+
+非礼勿言-非礼勿听-非礼勿视
+老师你好，之前曾碰到过消费者处理时间过长，可能导致会话过期，然后消费者就再也拿不到数据了，无法消费，不晓得是什么原因
+作者回复: 会话过期？是老版本consumer吗？有什么具体的日志打出来吗
+2019-06-26
+
+
+
+jacke
+胡老师，2个问题：
+ 1.zookeeper.connect的chroot这个点没有看懂，两套kafka集群不应该是每套都单独有自己的配置文件吗？kafka1和kafka2这2个别名在哪里设置的呢
+ 2.unclean.leader.election.enable 设置为false表示落后太多进度的副本无法没有资格做完leader，落后的进度多少算多呢？这个也是可以配置的吗？
+作者回复: 1. 是有独立的配置文件。这里的chroot设置是指在ZooKeeper中使用独立的znode父节点。
+2. 由replica.lag.time.max.ms控制。
+2019-06-25
+
+
+
+ban
+老师，我其实是想问下 租户 是什么意思，口语化来讲的话
+作者回复: 不论是公有云还是私有云，云上面有很多个用户，他们以租赁的方式来订购云上的系统资源（CPU、RAM、DISK、Bandwidth）。一般管这些用户成为租户。如果构建和运维支持多租户的Kafka集群是我们需要研究的课题。
+2019-06-24
+
+
+
+Geek_986289
+老师，这里的log.retention.hour 和log.retention.bytes指的是单个log吧，感觉如果是所有log 的大小似乎还能理解，但是所有log 的hour 似乎有点说不通
+作者回复: 这些都是全局参数，针对broker上所有log而言的
+2019-06-23
+
+
+
+ban
+kafka保存偏移量好像是在zookeeper，不是在kafka
+作者回复: 嗯嗯，这是老版本consumer的设计。目前老版本已经废弃了
+2019-06-22
+
+
+
+ban
+请问老师，租户 语义化来讲的话是表示什么意思呢
+作者回复: 抱歉，没太懂“租户 语义化”。搜了一下全文，貌似没有这个词。。。
+2019-06-22
+
+
+
+风中花
+打卡，来来回回，反反复复 ，8篇文章看来好几次！ 总结＋复习 ！ 希望有效果！ 感觉缺少实践！ 老师咱后续有带点实践吗？自己玩还是没有头绪！ 所以期待后续的课
+作者回复: 嗯嗯，每个人对于实践的理解不一样。尽量还是找一个真实的项目去着手学习，否则很难深入进去：）
+2019-06-21
+
+
+
+明翼
+谢谢
+2019-06-21
+
+
+
+涛
+老师您好，通过ssl方式加密传输，如果ssl得证书过期了，会影响数据传输么？
+作者回复: 应该不会。可以试验一下~~
+2019-06-20
+
+
+
+风中花
+继续打卡，继续努力，不懂不装懂，不要脸的问老师。老师我觉得这个参数这里我个人感觉稍微有点跳跃，怎么说呢，也许是我不懂，不熟悉，我觉得参数本身的作用我总是觉得看到的少，不够了解，然后就是他的场景介绍。所以感到跳跃，是我的初学的原因吗，我看了好几次，也许我学完后面的，回头看，就不是这么一回事了。
+作者回复: 嗯嗯，最好把Kafka的quick start跑通了并熟悉里面的流程：）
+2019-06-19
+
+
+
+明翼
+老师你好，message.max.bytes设置后是不是影响了kafka的内存占用大小？谢谢
+作者回复: 对于普通的消息处理，这个值不会增加额外的内存占用，它不像是数组的长度那样 ，即使用不完也要申请足量的内存空间。
+
+但对于Log Cleaner而言（就是为topic执行compact操作的线程），这个值的确会占用更多的内存，因为cleaner的读写buffer都要申请一块ByteBuffer。这个值越大这块buffer也就越大。好在cleaner thread也就那么几个。
+2019-06-19
+
+
+
+燃烧的M豆
+老师你好我用的 1.0.1 不知道 message.max.byte 是否在在1.0.1 种叫 log.segment.bytes？
+作者回复: 这是两个参数。message.max.bytes是控制消息的最大尺寸，log.segment.bytes是控制日志段文件的最大尺寸。你可以认为一个日志段文件里面包含了成千上万条的消息。
+2019-06-18
+
+
+
+wake
+老师好，我发现在官网上，旧的kafka版本无法下载(例如0.11.0.3)，这是什么原因呢？
+作者回复: 我这边可以下载啊，看看是不是被墙了吧。。。不行就画个镜像
+
+我用的是这个地址：
+https://archive.apache.org/dist/kafka/0.11.0.3/kafka_2.11-0.11.0.3.tgz
+2019-06-18
+
+
+
+祁恒
+老师，请问一下，confluent platform和kafka streams 之间有什么关系呢
+作者回复: Kafka Streams是Kafka社区提供的流处理库，用于实现实时流式计算。Confluent Platform是Kafka原开发团队单独成立公司后研发的基于Apache Kafka的商业化产品
+2019-06-18
+
+
+
+小猪
+请教老师，kafka可以部署到kubernetes云平台吗？效能如何？和直接部署在物理机上有什么区别？例如物理机可以选择分布在不同物理磁盘存数据提高速度等
+作者回复: 性能应该是不用担心的吧。很多大厂都有自己的Kafka PaaS服务，没有听说有性能方面的硬伤。用Docker跑也可以挂多个磁盘
+
+2019-06-18
+
+
+
+Geek_jacky
+老师好：如果unclean.leader.election.enable这个参数设置为false，一个partition挂了，不让数据少的副本参与选举，那么不就会一直没有副本了吗？我还有个问题，在磁盘满的情况我的一个topic其中的一个partition-0对应的brokerid变成了-1，本来是100的（手动设置的100,-1不知道怎么变的），那么这个partition-0就就找不到这个broker，导致无法进行消费。
+作者回复: 嗯嗯，如果ISR为空，unclean.leader.election.enable=false，当leader挂了的时候分区就不可用了。
+
+100是broker id，-1表示没有leader了，原因就是100的broker磁盘满了宕机了，正常情况下leader应该会切换到其他的副本上，除非你的副本数就是1
+2019-06-18
+
+
+
+Geek_jacky
+老师好，对于参数advertised.listeners，我理解的是在一个内网集群里面，最外面有一层防火墙，一家公司对应一个ip地址，那么将这个参数配置到公司这个ip同时开发一个新的端口，那么就可以通过外网ip+端口就可以访问内网的这个kafka集群对吧？不知道有没有理解错误。
+作者回复: 嗯嗯，我比较同意：）
+2019-06-18
+
+
+
+Nero
+listeners属性是指定该broker的ip和端口的对吧？
+作者回复: 嗯，对。<host, port>对
+2019-06-18
+
+
+
+啊哑呦
+"默认的 1000012 太少了，还不到 1KB", 这里是不是有点问题, 应该是1MB吧?
+2019-06-18
+
+
+
+蒙开强
+老师，你好，kafka的log存储目录可以指定为hdfs上么，如果可以，那就不用给分区指定副本了，因为hdfs默认就是三个副本
+作者回复: 目前不可以：（
+2019-06-18
+
+
+
+蔡胖子
+老师，您好。关于advertised.listener和listener这两个参数，具体有什么区别，能否再详细说明下，两者能否同时设置？谢谢！
+作者回复: advertised.listener主要是给通过外网访问的clients使用的。如果你的clients都是通过内网访问Kafka，只设置listeners就可以了。
+
+它们可以同时设置，常见的做法是设置advertised.listener为公网IP，listeners为内网IP，区分开来
+2019-06-18
+
+
+
+Stalary
+很棒！好多都是踩过的坑
+2019-06-18
+
+
+
+烟波
+生产者的ack配置
+2019-06-18
+
+
+
+
+

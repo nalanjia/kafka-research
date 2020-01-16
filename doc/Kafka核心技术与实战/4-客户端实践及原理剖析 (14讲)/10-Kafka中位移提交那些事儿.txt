@@ -1,0 +1,701 @@
+你好，我是胡夕。今天我们来聊聊 Kafka 中位移提交的那些事儿。
+
+之前我们说过，Consumer 端有个位移的概念，它和消息在分区中的位移不是一回事儿，虽然它们的英文都是 Offset。今天我们要聊的位移是 Consumer 的消费位移，它记录了 Consumer 要消费的下一条消息的位移。这可能和你以前了解的有些出入，不过切记是下一条消息的位移，而不是目前最新消费消息的位移。
+
+我来举个例子说明一下。假设一个分区中有 10 条消息，位移分别是 0 到 9。某个 Consumer 应用已消费了 5 条消息，这就说明该 Consumer 消费了位移为 0 到 4 的 5 条消息，此时 Consumer 的位移是 5，指向了下一条消息的位移。
+
+Consumer 需要向 Kafka 汇报自己的位移数据，这个汇报过程被称为提交位移（Committing Offsets）。因为 Consumer 能够同时消费多个分区的数据，所以位移的提交实际上是在分区粒度上进行的，即 Consumer 需要为分配给它的每个分区提交各自的位移数据。
+
+提交位移主要是为了表征 Consumer 的消费进度，这样当 Consumer 发生故障重启之后，就能够从 Kafka 中读取之前提交的位移值，然后从相应的位移处继续消费，从而避免整个消费过程重来一遍。换句话说，位移提交是 Kafka 提供给你的一个工具或语义保障，你负责维持这个语义保障，即如果你提交了位移 X，那么 Kafka 会认为所有位移值小于 X 的消息你都已经成功消费了。
+
+这一点特别关键。因为位移提交非常灵活，你完全可以提交任何位移值，但由此产生的后果你也要一并承担。假设你的 Consumer 消费了 10 条消息，你提交的位移值却是 20，那么从理论上讲，位移介于 11～19 之间的消息是有可能丢失的；相反地，如果你提交的位移值是 5，那么位移介于 5～9 之间的消息就有可能被重复消费。所以，我想再强调一下，位移提交的语义保障是由你来负责的，Kafka 只会“无脑”地接受你提交的位移。你对位移提交的管理直接影响了你的 Consumer 所能提供的消息语义保障。
+
+鉴于位移提交甚至是位移管理对 Consumer 端的巨大影响，Kafka，特别是 KafkaConsumer API，提供了多种提交位移的方法。从用户的角度来说，位移提交分为自动提交和手动提交；从 Consumer 端的角度来说，位移提交分为同步提交和异步提交。
+
+我们先来说说自动提交和手动提交。所谓自动提交，就是指 Kafka Consumer 在后台默默地为你提交位移，作为用户的你完全不必操心这些事；而手动提交，则是指你要自己提交位移，Kafka Consumer 压根不管。
+
+开启自动提交位移的方法很简单。Consumer 端有个参数 enable.auto.commit，把它设置为 true 或者压根不设置它就可以了。因为它的默认值就是 true，即 Java Consumer 默认就是自动提交位移的。如果启用了自动提交，Consumer 端还有个参数就派上用场了：auto.commit.interval.ms。它的默认值是 5 秒，表明 Kafka 每 5 秒会为你自动提交一次位移。
+
+为了把这个问题说清楚，我给出了完整的 Java 代码。这段代码展示了设置自动提交位移的方法。有了这段代码做基础，今天后面的讲解我就不再展示完整的代码了。
+
+
+Properties props = new Properties();
+     props.put("bootstrap.servers", "localhost:9092");
+     props.put("group.id", "test");
+     props.put("enable.auto.commit", "true");
+     props.put("auto.commit.interval.ms", "2000");
+     props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+     props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+     KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
+     consumer.subscribe(Arrays.asList("foo", "bar"));
+     while (true) {
+         ConsumerRecords<String, String> records = consumer.poll(100);
+         for (ConsumerRecord<String, String> record : records)
+             System.out.printf("offset = %d, key = %s, value = %s%n", record.offset(), record.key(), record.value());
+     }
+     
+上面的第 3、第 4 行代码，就是开启自动提交位移的方法。总体来说，还是很简单的吧。
+
+和自动提交相反的，就是手动提交了。开启手动提交位移的方法就是设置 enable.auto.commit 为 false。但是，仅仅设置它为 false 还不够，因为你只是告诉 Kafka Consumer 不要自动提交位移而已，你还需要调用相应的 API 手动提交位移。
+
+最简单的 API 就是 KafkaConsumer#commitSync()。该方法会提交 KafkaConsumer#poll() 返回的最新位移。从名字上来看，它是一个同步操作，即该方法会一直等待，直到位移被成功提交才会返回。如果提交过程中出现异常，该方法会将异常信息抛出。下面这段代码展示了 commitSync() 的使用方法：
+
+
+while (true) {
+            ConsumerRecords<String, String> records =
+                        consumer.poll(Duration.ofSeconds(1));
+            process(records); // 处理消息
+            try {
+                        consumer.commitSync();
+            } catch (CommitFailedException e) {
+                        handle(e); // 处理提交失败异常
+            }
+}
+
+可见，调用 consumer.commitSync() 方法的时机，是在你处理完了 poll() 方法返回的所有消息之后。如果你莽撞地过早提交了位移，就可能会出现消费数据丢失的情况。那么你可能会问，自动提交位移就不会出现消费数据丢失的情况了吗？它能恰到好处地把握时机进行位移提交吗？为了搞清楚这个问题，我们必须要深入地了解一下自动提交位移的顺序。
+
+一旦设置了 enable.auto.commit 为 true，Kafka 会保证在开始调用 poll 方法时，提交上次 poll 返回的所有消息。从顺序上来说，poll 方法的逻辑是先提交上一批消息的位移，再处理下一批消息，因此它能保证不出现消费丢失的情况。但自动提交位移的一个问题在于，它可能会出现重复消费。
+
+在默认情况下，Consumer 每 5 秒自动提交一次位移。现在，我们假设提交位移之后的 3 秒发生了 Rebalance 操作。在 Rebalance 之后，所有 Consumer 从上一次提交的位移处继续消费，但该位移已经是 3 秒前的位移数据了，故在 Rebalance 发生前 3 秒消费的所有数据都要重新再消费一次。虽然你能够通过减少 auto.commit.interval.ms 的值来提高提交频率，但这么做只能缩小重复消费的时间窗口，不可能完全消除它。这是自动提交机制的一个缺陷。
+
+反观手动提交位移，它的好处就在于更加灵活，你完全能够把控位移提交的时机和频率。但是，它也有一个缺陷，就是在调用 commitSync() 时，Consumer 程序会处于阻塞状态，直到远端的 Broker 返回提交结果，这个状态才会结束。在任何系统中，因为程序而非资源限制而导致的阻塞都可能是系统的瓶颈，会影响整个应用程序的 TPS。当然，你可以选择拉长提交间隔，但这样做的后果是 Consumer 的提交频率下降，在下次 Consumer 重启回来后，会有更多的消息被重新消费。
+
+鉴于这个问题，Kafka 社区为手动提交位移提供了另一个 API 方法：KafkaConsumer#commitAsync()。从名字上来看它就不是同步的，而是一个异步操作。调用 commitAsync() 之后，它会立即返回，不会阻塞，因此不会影响 Consumer 应用的 TPS。由于它是异步的，Kafka 提供了回调函数（callback），供你实现提交之后的逻辑，比如记录日志或处理异常等。下面这段代码展示了调用 commitAsync() 的方法：
+
+
+while (true) {
+            ConsumerRecords<String, String> records = 
+  consumer.poll(Duration.ofSeconds(1));
+            process(records); // 处理消息
+            consumer.commitAsync((offsets, exception) -> {
+  if (exception != null)
+  handle(exception);
+  });
+}
+
+commitAsync 是否能够替代 commitSync 呢？答案是不能。commitAsync 的问题在于，出现问题时它不会自动重试。因为它是异步操作，倘若提交失败后自动重试，那么它重试时提交的位移值可能早已经“过期”或不是最新值了。因此，异步提交的重试其实没有意义，所以 commitAsync 是不会重试的。
+
+显然，如果是手动提交，我们需要将 commitSync 和 commitAsync 组合使用才能到达最理想的效果，原因有两个：
+
+1。我们可以利用 commitSync 的自动重试来规避那些瞬时错误，比如网络的瞬时抖动，Broker 端 GC 等。因为这些问题都是短暂的，自动重试通常都会成功，因此，我们不想自己重试，而是希望 Kafka Consumer 帮我们做这件事。
+2。我们不希望程序总处于阻塞状态，影响 TPS。
+
+我们来看一下下面这段代码，它展示的是如何将两个 API 方法结合使用进行手动提交。
+
+   try {
+           while(true) {
+                        ConsumerRecords<String, String> records = 
+                                    consumer.poll(Duration.ofSeconds(1));
+                        process(records); // 处理消息
+                        commitAysnc(); // 使用异步提交规避阻塞
+            }
+} catch(Exception e) {
+            handle(e); // 处理异常
+} finally {
+            try {
+                        consumer.commitSync(); // 最后一次提交使用同步阻塞式提交
+  } finally {
+       consumer.close();
+}
+}
+
+这段代码同时使用了 commitSync() 和 commitAsync()。对于常规性、阶段性的手动提交，我们调用 commitAsync() 避免程序阻塞，而在 Consumer 要关闭前，我们调用 commitSync() 方法执行同步阻塞式的位移提交，以确保 Consumer 关闭前能够保存正确的位移数据。将两者结合后，我们既实现了异步无阻塞式的位移管理，也确保了 Consumer 位移的正确性，所以，如果你需要自行编写代码开发一套 Kafka Consumer 应用，那么我推荐你使用上面的代码范例来实现手动的位移提交。
+
+我们说了自动提交和手动提交，也说了同步提交和异步提交，这些就是 Kafka 位移提交的全部了吗？其实，我们还差一部分。
+
+实际上，Kafka Consumer API 还提供了一组更为方便的方法，可以帮助你实现更精细化的位移管理功能。刚刚我们聊到的所有位移提交，都是提交 poll 方法返回的所有消息的位移，比如 poll 方法一次返回了 500 条消息，当你处理完这 500 条消息之后，前面我们提到的各种方法会一次性地将这 500 条消息的位移一并处理。简单来说，就是直接提交最新一条消息的位移。但如果我想更加细粒度化地提交位移，该怎么办呢？
+
+设想这样一个场景：你的 poll 方法返回的不是 500 条消息，而是 5000 条。那么，你肯定不想把这 5000 条消息都处理完之后再提交位移，因为一旦中间出现差错，之前处理的全部都要重来一遍。这类似于我们数据库中的事务处理。很多时候，我们希望将一个大事务分割成若干个小事务分别提交，这能够有效减少错误恢复的时间。
+
+在 Kafka 中也是相同的道理。对于一次要处理很多消息的 Consumer 而言，它会关心社区有没有方法允许它在消费的中间进行位移提交。比如前面这个 5000 条消息的例子，你可能希望每处理完 100 条消息就提交一次位移，这样能够避免大批量的消息重新消费。
+
+庆幸的是，Kafka Consumer API 为手动提交提供了这样的方法：commitSync(Map) 和 commitAsync(Map)。它们的参数是一个 Map 对象，键就是 TopicPartition，即消费的分区，而值是一个 OffsetAndMetadata 对象，保存的主要是位移数据。
+
+就拿刚刚提过的那个例子来说，如何每处理 100 条消息就提交一次位移呢？在这里，我以 commitAsync 为例，展示一段代码，实际上，commitSync 的调用方法和它是一模一样的。
+
+
+private Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
+int count = 0;
+……
+while (true) {
+            ConsumerRecords<String, String> records = 
+  consumer.poll(Duration.ofSeconds(1));
+            for (ConsumerRecord<String, String> record: records) {
+                        process(record);  // 处理消息
+                        offsets.put(new TopicPartition(record.topic(), record.partition()),
+                                   new OffsetAndMetadata(record.offset() + 1)；
+                       if（count % 100 == 0）
+                                    consumer.commitAsync(offsets, null); // 回调处理逻辑是null
+                        count++;
+  }
+}
+
+简单解释一下这段代码。程序先是创建了一个 Map 对象，用于保存 Consumer 消费处理过程中要提交的分区位移，之后开始逐条处理消息，并构造要提交的位移值。还记得之前我说过要提交下一条消息的位移吗？这就是这里构造 OffsetAndMetadata 对象时，使用当前消息位移加 1 的原因。代码的最后部分是做位移的提交。我在这里设置了一个计数器，每累计 100 条消息就统一提交一次位移。与调用无参的 commitAsync 不同，这里调用了带 Map 对象参数的 commitAsync 进行细粒度的位移提交。这样，这段代码就能够实现每处理 100 条消息就提交一次位移，不用再受 poll 方法返回的消息总数的限制了。
+
+小结
+
+好了，我们来总结一下今天的内容。Kafka Consumer 的位移提交，是实现 Consumer 端语义保障的重要手段。位移提交分为自动提交和手动提交，而手动提交又分为同步提交和异步提交。在实际使用过程中，推荐你使用手动提交机制，因为它更加可控，也更加灵活。另外，建议你同时采用同步提交和异步提交两种方式，这样既不影响 TPS，又支持自动重试，改善 Consumer 应用的高可用性。总之，Kafka Consumer API 提供了多种灵活的提交方法，方便你根据自己的业务场景定制你的提交策略。
+【10-配图-Kafka提供的提交位移的方法.jpg】
+
+开放讨论
+
+实际上，手动提交也不能避免消息重复消费。假设 Consumer 在处理完消息和提交位移前出现故障，下次重启后依然会出现消息重复消费的情况。请你思考一下，如何实现你的业务场景中的去重逻辑呢？
+
+欢迎写下你的思考和答案，我们一起讨论。如果你觉得有所收获，也欢迎把文章分享给你的朋友。
+
+精选留言(62)
+
+
+nightmare
+老师手动提交的设计很优美，先用异步提交不影响程序的性能，再用consumer关闭时同步提交来确保位移一定提交成功。这里我有个疑问，比如我程序运行期间有多次异步提交没有成功，比如101的offset和201的offset没有提交成功，程序关闭的时候501的offset提交成功了，是不是就代表前面500条我还是消费成功了，只要最新的位移提交成功，就代表之前的消息都提交成功了？第二点 就是批量提交哪里，如果一个消费者晓得多个分区的消息，封装在一个Map对象里面消费者也能正确的对多个分区的位移都保证正确的提交吗？
+2019-07-13
+
+2
+
+18
+
+无菇朋友
+老师您好，有一个疑问，为什么poll之前的提交和按频率自动提交是一个时机，假如频率是5s提交一次，某两次poll之间的间隔是6s，这时候是怎么处理提交的？忘老师解答下，着实没想通这个地方
+作者回复: 嗯， 严格来说。提交频率指的是最小的提交间隔。比如设置5s，Kafka保证至少等待5s才会自动提交一次。
+2019-07-21
+
+
+5
+
+Tony Du
+老师，您好～ 看了今天的教程我有两个问题想请教下，希望老师能赐教。
+1. 从文中的代码看上去，使用commitAsync提供offset，不需要等待异步执行结果再次poll就能拿到下一批消息，是那么这个offset的最新值是不是理解为其实是在consumer client的内存中管理的（因为实际commitAsync如果失败的话，offset不会写入broker中）？如果是这样的话，如果在执行到commitSync之前，consumer client进程重启了，就有可能会消费到因commitAsync失败产生的重复消息。
+2. 教程中手动提交100条消息的代码是一个同步处理的代码，我在实际工程中遇到的问题是，为了提高消息处理效率，coumser poll到一批消息后会提交到一个thread pool中处理，这种情况下，请教下怎样做到控制offset分批提交？
+谢谢
+2019-07-13
+
+
+4
+
+AF
+先说一下，课后思考，解决的办法应该就是，将消息处理和位移提交放在一个事务里面，要么都成功，要么都失败。
+
+老师文章里面的举的一个例子没有很明白，能不能再解释一下。就是那个位移提交后Rebalance的例子。
+2019-07-13
+
+1
+
+3
+
+lmtoo
+对于手动同步和异步提交结合的场景，如果poll出来的消息是500条，而业务处理200条的时候，业务抛异常了，后续消息根本就没有被遍历过，finally里手动同步提交的是201还是000，还是501？
+作者回复: 如果调用没有参数的commit，那么提交的是500
+2019-07-13
+
+3
+
+2
+
+惜昔
+老师 手动提交位移的时候 如果一个某个消费者组的一个消费者实例从offset下标4开始消费的 但是消费者的消费逻辑比较重量级，处理的时间比较长，还没有提交。这时候另外一个消费者组的一个消费者实例来相同的分区来拿消息，会不会拿的是上一个消费者已经拿过的消费，从而重复消费？
+作者回复: 有可能的~
+2019-11-08
+
+1
+
+1
+
+Algoric
+自动提交一定不会消息丢失吗，如果每次poll的数据过多，在提交时间内没有处理完，这时达到提交时间，那么Kafka还是重复提交上次poll的最大位移吗，还是讲本次poll的消息最大位移提交？
+作者回复: hmmm... 其实我一直觉得提交间隔这个参数的命名有些问题。它实际保证的是位移至少要隔一段时间才会提交，如果你是单线程处理消息，那么只有处理完消息后才会提交位移，可能远比你设置的间隔长。
+2019-09-25
+
+2
+
+1
+
+谢特
+不漏不重复很难做到，我现在都不知道怎么弄，读偏移量容易，提交太难
+2019-09-10
+
+
+1
+
+WL
+我感觉有点不是很理解消费者端的位移概念和消息在分区中的位移为啥不是一回事，我理像是一回事，因为消费者端把自己消费的位移提交到Broker的位移主题里不就定义了下次消费的起点了吗，为啥说不是一回事呢，有啥区别呢，请老师具体指导一下。
+作者回复: 嗯嗯，我的意思是consumer提交的位移值虽然就是消息在分区中的位移值，但这个提交位移的概念和分区中的位移概念是不同的。
+2019-07-13
+
+
+1
+
+水天一色
+消费者提了异步 commit 实际还没更新完offset，消费者再不断地poll，其实会有重复消费的情况吧？
+作者回复: 只要consumer没有重启，不会发生重复消费。因为在运行过程中consumer会记录已获取的消息位移
+2019-12-07
+
+
+
+James
+你好，请问下分区自动提交失败，请求超时。会导致什么后果呢
+重复消费吗。
+作者回复: 偶发的提交失败也不一定就意味着重复消费，看consumer程序的运行情况。
+2019-11-20
+
+1
+
+
+xiaoniu
+老师 你好 问个问题，Kafka对未提交的消息一定要等到消费工程重启才重新消费吗？比如：我的消费工程 支持幂等性，可以重复消费，但是由于某时刻数据库挂了，导致消息未提交，但隔了一段时间数据库又好了，之前未提交的消息可以在不重启的情况下再次消费下吗？
+作者回复: 如果不重启的话，程序里面是否显式调用了seek重新调整了offset呢？如果没有就无法重新消费那些已经消费的消息
+2019-11-18
+
+
+
+Ran
+消费端去重处理方式有很多。比如保证操作的幂等性，或者缓存业务id在redis中，或者数据库唯一键
+2019-11-14
+
+
+
+注定非凡
+1 概念区分
+A ：Consumer端的位移概念和消息分区的位移概念不是一回事。
+B ：Consumer的消费位移，记录的是Consumer要消费的下一条消息的位移。
+
+2 提交位移
+A ：Consumer 要向Kafka汇报自己的位移数据，这个汇报过程被称为提交位移（Committing Offsets）。
+B ：Consumer需要为分配给它的每个分区提交各自的位移数据。
+
+3提交位移的作用
+A ：提交位移主要是为了表征Consumer的消费进度，这样当Consumer发生故障重启后，能够从kafka中读取之前提交的位移值，从相应的位置继续消费，避免从头在消费一遍。
+
+4 位移提交的特点
+A ：位移提交的语义保障是由你来负责的，Kafka只会“无脑”地接受你提交的位移。位移提交错误，就会消息消费错误。
+
+5 位移提交方式
+A ：从用户的角度讲，位移提交分为自动提交和手动提交；从Consumer端的角度而言，位移提交分为同步提交和异步提交。
+
+B ：自动提交：由Kafka consumer在后台默默的执行提交位移，用户不用管。开启简单，使用方便，但可能会出现重复消费。
+
+C ：手动提交：好处在更加灵活，完全能够把控位移提交的时机和频率。
+（1）同步提交：在调用commitSync()时，Consumer程序会处于阻塞状态，直到远端Broker返回提交结果，这个状态才会结束。对TPS影响显著
+（2）异步提交：在调用commitAsync()时，会立即给响应，但是出问题了它不会自动重试。
+（3）手动提交最好是同步和异步结合使用，正常用异步提交，如果异步提交失败，用同步提交方式补偿提交。
+
+D ：批次提交：对于一次要处理很多消费的Consumer而言，将一个大事务分割成若干个小事务分别提交。这可以有效减少错误恢复的时间，避免大批量的消息重新消费。
+（1）使用commitSync（Map<TopicPartition，Offset>）和commitAsync(Map<TopicPartition，OffsetAndMetadata>)。
+2019-11-05
+
+
+
+不忘初心丶方得始终
+老师你好，问个问题，目前公司要用kafka同步老数据库数据，同步过程是按照老数据库的bin.log日志顺序进行同步，但是在同步过程中，有些表是有关联的，加入将数据放到多个分区，不同分区数据消费顺序不一样，就会导致数据同步出现关联问题，如果设置一个分区……这样又太慢，有什么好的建议吗？
+作者回复: 如果是批任务，能否等到数据抽取完了再进行消费。如果是streaming任务，这是经典的table-table join，最好使用特定的流处理框架来处理
+2019-10-25
+
+
+
+jc9090kkk
+感觉老师分享，对于文章中的那个自动提交的例子有点疑惑，希望老师能解答一下：
+auto.commit.interval.ms设置为5s，也就是说consumer每5秒才提交一次位移信息，那consumer如果每消费一条数据，但是没有达到自动提交的时间，这个位移信息该如何管理？consumer自己做维护吗？但是也需要跟broker端进行位移信息同步的吧？ 不然可能会造成数据的重复消费？还是每5s的提交和consumer自动提交的时候都会伴随位移信息的同步？是我的理解有问题吗？
+作者回复: 如果没有达到提交时间就不会提交，自动提交完全由consumer自行维护，确实可能造成数据的重复消费。你的理解完全没有问题：）
+
+目前单纯依赖consumer是无法避免消息的重复消费的，Kafka默认提供的消息处理语义就是至少一次处理。
+2019-09-23
+
+1
+
+
+DFighting
+每个Consumer消费完数据后需要暂存下offset，考虑到一个分区的数据只会被一个当前组下的一个Consumer消费，那么有仨种情况要处理：
+1、继续消费时，那么可以判断后续poll到的offset和自己保存的值的大小，只消费不小于的消息
+2、处理最后一个消息时，这时候可以仿照TCP的最后一次挥手中的CLOSE_WAIT状态，设定一个超时时间——这需要结合日常的业务场景，至少要取最大传输时延的2倍，因为大多数情况下消息是不断到达的，所以这个时间设定稍微久远一点也是可以的。
+3、前两种都是成功消费的情况，如果消费失败导致位移更新失败，那么这个机制就没有任何生效的意义了，这时候重复消费就不可避免了。
+自己的一些见解，有什么不合适的情况望老师指点一二
+作者回复: 我觉得说的挺好的：）
+2019-09-05
+
+
+
+盘尼西林
+发生重平衡之前可以添加一个ConsumerRebalanceListener，防止offset丢失。 在一个消费者对一个分区失去所有权之前 会调用这个ConsumerRebalanceListener，ConsumerRebalanceListener在调用subscribe()方法传进去，这个时候我们可以在这个listener中添加commit offset
+2019-09-01
+
+
+
+嘉嘉☕
+老师, 请问一下, 
+如果consumer拉过来一批消息, 还没处理完呢, 就调用了它的close方法, consumer会继续消费完成吗 ? 还是会做出一些其他的行为 ?
+谢谢
+作者回复: “还没处理完呢, 就调用了它的close方法” --- 不会啊。
+2019-08-17
+
+
+
+godtrue
+0：位移是指什么？
+今天我们要聊的位移是 Consumer 的消费位移，它记录了 Consumer 要消费的下一条消息的位移。这可能和你以前了解的有些出入，不过切记是下一条消息的位移，而不是目前最新消费消息的位移。
+consumer侧的位移，表示consumer消费消息的进度和即将要消费的消息在分区中的具体位置。
+
+1：提交位移是指什么意思？
+Consumer 需要向 Kafka 汇报自己的位移数据，这个汇报过程被称为提交位移（Committing Offsets）。因为 Consumer 能够同时消费多个分区的数据，所以位移的提交实际上是在分区粒度上进行的，即Consumer 需要为分配给它的每个分区提交各自的位移数据
+
+2：提交位移的作用是啥？
+提交位移主要是为了表征 Consumer 的消费进度，这样当 Consumer 发生故障重启之后，就能够从 Kafka 中读取之前提交的位移值，然后从相应的位移处继续消费，从而避免整个消费过程重来一遍。换句话说，位移提交是 Kafka 提供给你的一个工具或语义保障，你负责维持这个语义保障，即如果你提交了位移 X，那么 Kafka 会认为所有位移值小于 X 的消息你都已经成功消费了。
+
+2：提交位移的方式有哪些？
+从用户的角度来说，位移提交分为自动提交和手动提交；从 Consumer 端的角度来说，位移提交分为同步提交和异步提交。
+自动提交位移，嫩个保证消息不丢失，但是可能存在消息的重复消费。
+手动提交位移，kafka提供了同步和异步的API，老师也提供了手动提交的代码范例。
+老师推荐手动提交，灵活，可控，同步异步结合使用。
+需要注意的是位移提交如果错误会出现消息丢失或重复消费的情况。手动提交时，位移提交的语义保障是由我们自己来负责的，Kafka 只会“无脑”地接受我们提交的位移。我们对位移提交的管理直接影响了我们的 Consumer 所能提供的消息语义保障。
+
+请问老师，手动提交位移时，kafka对边界值有校验嘛？比如：一个分区有0～9十个位置，我传过去一个-1或者11，kafka会将所有消息重复消费或全部丢掉嘛？
+业务侧来进行消息去重，可以利用数据库的唯一索引，这需要一个唯一的业务字段，比如：订单号
+如果不能利用数据库来做，我觉得可以缓存消息，然后用于消息去重，消息重复发送的时机应该时差比较短。
+再请教一个问题，假如现在只有一个producer、一个broker、一个分区、一个consumer，位移从producer的角度有一个，从consumer的角度有一个，不过全是针对这一个分区而言的对吗？如果是，我还想再问一次分区的数据结构是什么？看之前的图像是数组，是不是数组呢？如果是，一端负责写入数据，一端负责读取数据，都是通过位移来控制的，也能理解。只是这数组的长度和删除消息的操作怎么控制的呢？
+2019-08-16
+
+
+
+Devin
+“手动异步提交位移”理论上是不是容易出现重复消费的情况？
+举例：A分区当前消费者位移是100，consumer 继续消费 101~200，然后调用异步 commitAsync(201)，假设在commitAsync(201)还未被成功处理完成前 consumer 又去取消息，这时取的消息还是 101~200 吧，那这就“重复消费”了。
+如果举例成立的话，感觉这个理论上还是比价容易发生的，如何避免？
+2019-08-11
+
+1
+
+
+盘尼西林
+我也有一个疑问就是自动提交rebalance导致数据丢失的情况，是不是 自动提交的时候当consumer消费完一个数据的时候，此时的offset没有被提交 而是在内存中等待后台cron线程 或者下次poll的时候刷入磁盘，中间发生重启或者rebalance这部分数据就丢失了，最后导致重复消费
+作者回复: 到底是丢失还是重复呢？自动提交应该不会造成数据丢失，但确实可能造成数据重复
+2019-08-08
+
+1
+
+
+james
+老师，异步和同步结合那段代码，当消费出异常就在finally中把消费者close了？？不是这样的吧，消费者永远不应该close
+作者回复: 看你的场景了。消费者碰到严重异常要退出也是很正常的情况
+2019-08-07
+
+
+
+Li Shunduo
+从文章看，无论是自动提交还是手动提交，都是有可能存在消息重复消费的。请问有没有办法通过offset管理避免重复消费呢？还是要借助外部的工具做消费前的检查。
+作者回复: 将offset提交与事件处理结果放入一个支持原子性操作的存储可以避免，类似于事务。另外Kafka Streams支持精确一次处理语义，也可以一试
+2019-08-02
+
+
+
+EricJones
+老师手动提交的设计很优美，先用异步提交不影响程序的性能，再用consumer关闭时同步提交来确保位移一定提交成功。这里我有个疑问，比如我程序运行期间有多次异步提交没有成功，比如101的offset和201的offset没有提交成功，程序关闭的时候501的offset提交成功了，是不是就代表前面500条我还是消费成功了，只要最新的位移提交成功，就代表之前的消息都提交成功了？
+老师这个问题 岂不是丢数据了？
+commitAsync 异步提交，然后会继续消费 poll 的消息，比如上一个poll 到 101 下面一个到 201。上一个到101 位移消息提交了。继续消费101-201的消息。这是已经消费到200了，上次poll 的消息 101位移提交失败，然后在调用 commitSync 同步提交这里的逻辑，然后已经消费到200 的消息不是就白消费了？这里应该是怎么个逻辑？是consumer 关闭，然后在poll 消息那还是poll 的101-201 。刚才的消费到200 就又重复了。
+2019-08-01
+
+
+
+老鱼
+老师，poll时会自动提交位移，这里的位移是分区中位移主题的位移？
+作者回复: 不是，是向位移主题提交位移
+2019-07-26
+
+
+
+来碗绿豆汤
+如果消息被处理了，但是offset提交失败，那从broker的角度来看就是消息没被处理，下次肯定还会重复被消费；但是从consumer的角度看的话是消息被处理了，然后又要被处理一遍。这时候如果我们的业务逻辑如果是等幂的，则无所谓；如果不是，我能相对两种方案：1， 有个事务存在，数据处理和提交offset在一个事务里面，如果有一个失败则都回滚；2，自己在业务逻辑端加一个验证，判断消息是否是重复消费。
+2019-07-22
+
+
+
+李坤
+老师您好，异步提交重试时提交的位移值可能早已经“过期”或不是最新值了。什么情况下会出现呢？
+作者回复: consumer一直在消费时就可以出现
+2019-07-22
+
+
+
+曹伟雄
+老师你好，能否说一下spring kafka手到提交的最佳实践，谢谢!
+2019-07-19
+
+
+
+lujg
+其实总结来说1，2，4都是在消费者端缩短poll到commit间的处理时间，而3是增加poll到commit间允许的时长，从而确保poll到commit间的时间小于系统配置的时间。
+2019-07-18
+
+
+
+信信
+和一楼有同样的疑惑：同时使用commitSync() 和 commitAsync()方案，一样可能会出现：早已经“过期”或不是最新值了 的情况啊。。。因为异步返回exception 的时候，可能出错的那条消息之后的位移已经被更新了。
+2019-07-17
+
+1
+
+
+Jason_鹏
+自动提交也会出现消息丢失的情况吧，例如消费者poll了10个条消息，假设这10条消息的偏移量是0到9，当消费者消费到偏移量为5的消息时，自动提交消费位移为10，后续发生rbalance或者消费者异常重启，再次poll时会poll偏移量为10的消息，那6到9的消息就丢失了。
+2019-07-17
+
+1
+
+
+james
+可以给消息添加一个key，rocketmq就有的，消费完之后写布隆过滤器，如redis的插件，每次消费前看里面有没有，但是消费成功插布隆过滤器有可能失败就又无解了，哈哈
+2019-07-17
+
+
+
+October
+我认为避免重复消费这个问题是要有条件的，需要保证偏移量的提交和消息的消费能够在一个支持回滚的事务内进行，偏移量可以回滚，消息的消费也可以回滚，比如消息的消费逻辑是存入RDBMS，可以明显看出这种方式的应用场景非常局限。其他避免重复消费的问题，还得请老师指正。
+2019-07-16
+
+
+
+Walking In The Air
+老师有没有了解过nats, 能不能做个简单对比说下
+2019-07-16
+
+
+
+calljson
+请教老师两个问题，
+1. consumer.close()会触发rebalance吗？
+2. 一个consumer实例就是一个客户端吗？比如：线程池中new了两个consumer实例，是不是意味着开启了两个客户端？
+麻烦老师解惑，谢谢您
+作者回复: 1. 会的
+2. 一个KafkaConsumer实例就算一个客户端
+2019-07-16
+
+
+
+Geek_817ea4
+val redisManage: Map[TopicPartition, Long] = new RedisOffset().getLastCommittedOffsets(properties.getProperty("topic"))
+    val result: InputDStream[ConsumerRecord[String, String]] = if (redisManage.isEmpty) {
+      KafkaUtils.createDirectStream[String, String](sc, LocationStrategies.PreferConsistent, ConsumerStrategies.Subscribe[String, String](topics, kafkaPrograms))
+    } else {
+      KafkaUtils.createDirectStream[String, String](sc, LocationStrategies.PreferConsistent, ConsumerStrategies.Assign[String, String](redisManage.keys, kafkaPrograms, redisManage))
+    }
+    //业务逻辑处理
+    result.foreachRDD({ (rdd: RDD[ConsumerRecord[String, String]]) =>
+      //获取Jedis对象
+      val jedis: Jedis = new RedisClient().getJedis
+      //获得偏移量对象数组
+      val offsetRanges: Array[OffsetRange] = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
+      rdd.foreachPartition({ (it: Iterator[ConsumerRecord[String, String]]) =>
+        //数据逻辑处理
+        it.foreach(f = (pair: ConsumerRecord[String, String]) => {
+逻辑代码略
+        })
+      })
+      //更新offset
+      offsetRanges.foreach { (offsetRange: OffsetRange) =>
+        jedis.hset(properties.getProperty("group.id"), offsetRange.topic + "-" + offsetRange.partition, offsetRange.untilOffset.toString)
+      }
+我是把offset保存在了redis，虽然不会丢数据，但是还是会发生会重复消费，应该怎么设计！
+2019-07-16
+
+
+
+z.l
+try {
+        while (true) {
+            ConsumerRecords<String, String> records = 
+                        consumer.poll(Duration.ofSeconds(1));
+            process(records); // 处理消息
+            commitAysnc(); // 使用异步提交规避阻塞
+        }
+     } catch (Exception e) {
+        handle(e); // 处理异常
+    } finally {
+        try {
+            consumer.commitSync(); // 最后一次提交使用同步阻塞式提交
+        } finally {
+            consumer.close();
+        }
+    }
+这段代码如果异常了，不就退出while循环了么？也就相当于消费者线程异常退出？
+作者回复: 是的。这取决于你对异常的处理态度。如果你觉得处理异常后还能继续消费，也可以将try-catch放入while内
+2019-07-16
+
+1
+
+
+Dovelol
+老师还，还是关于几个时间参数的配置和重复消费，前提是自动提交，参数和代码为：max.poll.interval.ms=5s，auto.commit.interval.ms=10s，consumer.poll(Duration.ofSeconds(1))，然后在consumer while(true)最后Thread.sleep(6000L); 休眠6s，发现会一直重复消费，这是为什么呢，通过控制变量法= =，我发现只要consumer消费的时间大于max.poll.interval.ms的设置，就会一直重复消费，也就是没有成功提交offset吗？为什么和max.poll.interval.ms有关系呢，反而和auto.commit.interval.ms没关系似的，老师能详细讲讲吗？我看kafka默认的max.poll.interval.ms=300s，是不是不应该把这个时间调的太小，这样会引起重复消费。
+2019-07-16
+
+
+
+Liam
+自动提交模式下，多线程消费，Kafka client 如何保证位移提交的正确性？
+作者回复: 自动提交自动就能保证正确性，只是有可能重复消费
+2019-07-16
+
+
+
+Liam
+追问我的上一个问题：为什么说是一个时机，是因为5s poll一次吗
+2019-07-16
+
+
+
+德惠先生
+普通的做法是用redis或者数据库做一个消费锁，消费之前获取，消费之后释放。获取到之后如果发现已经被消费过则丢弃这次消费。但这样的做法需要引入新的外部依赖，会变得很重，而且对消费性能也会影响，并且中央式服务也容易成为扩展的瓶颈。老师有什么好方法吗？
+2019-07-15
+
+
+
+我已经设置了昵称
+看下来感觉自动提交有两个提交方法，1.默认5秒一次，2.每次调用poll方法的时候。是这样吗？
+作者回复: 自动提交就是在poll方法调用过程中执行的，如果设置了5秒，表示至少5秒提交一次
+2019-07-15
+
+1
+
+
+Dovelol
+老师好，还是consumer消费的问题，我看有人问了，如果自动提交时间设置为20s，那么中间消费完了，然后又去拉取新消息，怎么保证不重复消费呢？我看回复的是“consumer内部有个指针，会探测到下一条要消费的数据”，这个意思是虽然没有提交offset，但是consumer端有自己的offset，可以保证从上次消费过后的位置拉取新消息，如果在这个中间，consumer挂了，那就会有重复消费的情况。是这样的吗？这样的话其实consumer消费数据是和这个指针的位置有关系，至于提交的offset仅仅是为了保证consumer关闭重启时确定开始消费的位置。还有一种方式是，consumer每次消费数据就是以提交的offset为准，把这些数据都拉取到，但是consumer端会按照自己的指针，只处理指针位置后面的数据，之前的数据跳过掉。
+2019-07-15
+
+
+
+曾轼麟
+不过老师有一个问题，poll下来的数据是有序的吗？同一个partition中各个消息的相对顺序，当然不同partition应该是不一定的
+作者回复: 是的
+2019-07-15
+
+
+
+曾轼麟
+我们目前的做法是kafka消费前都有一个消息接口表，可以使用Redis或者MySQL(Redis只存最近100个消息)，然后会设置consumer拉取消息的大小极限，保证消息数量不超过100(这个阈值可以自行调整)，其中我们会保证kafka消息的key是全局唯一的，比如使用雪花算法，在进行消费的时候可以通过前置表进行幂等性去重
+2019-07-15
+
+
+
+Liam
+所以自动提交有2个时机吗？
+
+1 固定频率提及，例如5s提及一次
+2 poll新数据之前提交前面消费的数据
+作者回复: 它们实际上是一个时机
+2019-07-15
+
+
+
+ikimiy
+老师 consumer offset在spark程序中如何控制手动提交的 有没有sample code可以参考的 thks
+2019-07-15
+
+
+
+calljson
+避免重复消费：
+1. （不考虑rebalance）producer在生成消息体是，里面加上唯一标识符比如：唯一Id，即保证消息的幂等性，consumer在处理消息的过程中，将消费后的消息Id存储到数据库中或者redis，等消息处理完毕后在手动提交offset
+2. （考虑rebalance）监听consumer的rebalance，rebalance发生前将topic-partion-offset存入数据库，rebalance后根据获取到的分区信息到数据库中查找上次消费到的位置seek到上次消费位置，在处理消息中，利用数据库事务管理处理消息
+2.
+2019-07-15
+
+1
+
+
+z.l
+消费者端实现消费幂等。具体做法：创建本地消息表，以messageId作为主键。消费消息的同时也插入消息表，把消费逻辑的sql语句和消息表的insert语句放在同一个数据库事务中。
+2019-07-14
+
+
+
+双叶
+我理解中的 enable.auto.commit 跟文章中说的不太一样，我理解设置为 true 的时候提供的是至多一次的语义，而不是至少一次的语义。
+
+我不用 java，看的是 librdkafka 的文档。enable.auto.commit 的文档说明是：Automatically and periodically commit offsets in the background. 也就是说他会定期提交 offset，但是这里没有明说提交的 offset 是什么时候记录的，我的理解是记录是由 enable.auto.offset.store 决定的。
+
+enable.auto.offset.store 文档说明是：Automatically store offset of last message provided to application. The offset store is an in-memory store of the next offset to (auto-)commit for each partition. 也就是说如果设置成 true（默认值），他会自动把上个提交给应用程序的offset 记录到内存中。
+
+也就是说，如果应用拿到一个 offset 了，librdkafka 就会把这个 offset 记录到内存中，然后默认情况下至多 5s 之后，就会提交给 broker。这时候如果应用还没有完成这个 offset 的处理时，发生了崩溃，这个 offset 就丢掉了，所以是一个至多一次的语义。
+
+我理解中提供至少一次语义需要关掉 enable.auto.commit 自己控制提交才行。
+2019-07-14
+
+
+
+kursk.ye
+我现在有点糊涂了，kafka的offset是以broker发消息给consumer时，broker的offset为准；还是以consumer 的commit offset为准？比如，一个partition现在的offset是99，执行poll(10)方法时，broker给consumer发送了10条记录，在broker中offset变为109；假如 enable.auto.commit 为false，为手动提交consumer offset,但是cosumer在执行consumer.commitSync()或consumer.commitAsync()时进程失败，整个consumer进程都崩溃了；于是一个新的consumer接替原consumer继续消费，那么他是从99开始消费，还是从109开始消费？
+作者回复: 首先，poll(10)不是获取10条消息的意思。
+其次，consumer获取的位移是它之前最新一次提交的位移，因此是99
+2019-07-14
+
+
+
+电光火石
+老师好，consumer的api在读取的时候能指定从某个partition的某个offset开始读取吗？看参数只能用latest,oldest进行指定，然后用kafka记录的offset进行读取，我们能自己控制起始的offset吗，这样可以做更精准的exact once的语义
+作者回复: 可以控制，使用KafkaConsumer.seek可以精确控制你要开始消费的位移
+2019-07-14
+
+2
+
+
+ban
+老师，有个疑问。commitSync 和 commitAsync 组合这个代码，捕获异常在while循环外面，如果发生异常不就不走了吗，程序也就停止。是不是放在while循环比较好，既可以处理异常，还能提交偏移量，还能继续消费处理消息？
+作者回复: try不是在while外面吗？
+2019-07-13
+
+2
+
+
+ban
+老师，你好。有个场景不太明白。我做个假设，比如说我的模式是自动提交，自动提交间隔是20秒一次，那我消费了10个消息，很快一秒内就结束。但是这时候我自动提交时间还没到（那是不是意味着不会提交offer），然后这时候我又去poll获取消息，会不会导致一直获取上一批的消息？
+
+还是说如果consumer消费完了，自动提交时间还没到，如果你去poll，这时候会自动提交，就不会出现重复消费的情况。
+作者回复: 不会的。consumer内部维护了一个指针，能够探测到下一条要消费的数据
+2019-07-13
+
+
+
+明翼
+有同学问offset是否在内存控制等问题，可能是没用过kafka，kafka的消费者启动时候可以设置参数从什么位置开始读，有的是从最新的开始读，有的是从最老的开始读，从最新位置读就是从上次提交的位移读，所以提交的offset是用作下一次程序启动或重新平衡后读取的位置的。同样像老师这种先异步再同步提交数据的场景如果一次拉500条数据，消费到200条之后异常了，同步提交是提交500条的，我觉得是不是可以类似下面分批提交的方法提交不知道此方法有同步的吗？有的话应该会比较完美解决。
+
+对于老师的问题，想不重复只有自己在程序中保留offsetid.如果后端系统有数据库类似数据库主建机制，可以用这个方法判断，插入报约束冲突就忽视…
+2019-07-13
+
+1
+
+
+蛋炒番茄
+自动提交就一定能够保证不丢消息吗？
+作者回复: 不能绝对保证
+2019-07-13
+
+1
+
+
+科莫湖畔的球童
+Consumer自己记录一下最近一次已消费的offset
+2019-07-13
+
+
+
+海贼王
+自动提交也可能出现消息丢失的情况，如果拉取消息和处理消息是两个线程去处理的就可能发生拉取线程拉取了两次，处理线程第一次的消息没处理完，崩溃恢复后再消费导致可能丢失某些消息。不过我觉得这不能怪kafka了，这种丢失超出kafka的责任边界了
+2019-07-13
+
+
+
+lmtoo
+关于业务去重的逻辑，可以考虑在业务字段里加一个txid，用consumer的offset值表示事务id，如果有这个id表示被处理过了，如果没有，则表示还没处理过，这样可以利用mysql或者MongoDB来实现避免重复消费
+2019-07-13
+
+
+
+nico
+老师，请教个问题，我这面用spring的注解方式消费kafka消息，使用的是手动提交位移，我将一个java应用，部署在两台机器上面启动，同一个消费组，一共30个partition,发现部分1-25的partition堆积，25-30的消费正常，这个要怎么分析？
+作者回复: 要看数据量是否skewed
+2019-07-13
+
+1
+
+
+nightmare
+对于重复消费既然避免不了就把消息的业务逻辑唯一性存储下来，如果已经存储就不消费，而没有再消费，比如存储到mongodb中，如果考虑性能redis也可以，如果业务比较重要可以用数据库的乐观锁来保证幂等性，因为重复消费毕竟是小概率事件
+2019-07-13
+
+1

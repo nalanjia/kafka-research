@@ -1,0 +1,370 @@
+你好，我是胡夕。今天我要和你分享的主题是：客户端都有哪些不常见但是很高级的功能。
+
+既然是不常见，那就说明在实际场景中并没有太高的出场率，但它们依然是很高级很实用的。下面就有请今天的主角登场：Kafka 拦截器。
+
+什么是拦截器？
+
+如果你用过 Spring Interceptor 或是 Apache Flume，那么应该不会对拦截器这个概念感到陌生，其基本思想就是允许应用程序在不修改逻辑的情况下，动态地实现一组可插拔的事件处理逻辑链。它能够在主业务操作的前后多个时间点上插入对应的“拦截”逻辑。下面这张图展示了 Spring MVC 拦截器的工作原理：
+【04-配图-Spring MVC拦截器的工作原理.png】
+
+拦截器 1 和拦截器 2 分别在请求发送之前、发送之后以及完成之后三个地方插入了对应的处理逻辑。而 Flume 中的拦截器也是同理，它们插入的逻辑可以是修改待发送的消息，也可以是创建新的消息，甚至是丢弃消息。这些功能都是以配置拦截器类的方式动态插入到应用程序中的，故可以快速地切换不同的拦截器而不影响主程序逻辑。
+
+Kafka 拦截器借鉴了这样的设计思路。你可以在消息处理的前后多个时点动态植入不同的处理逻辑，比如在消息发送前或者在消息被消费后。
+
+作为一个非常小众的功能，Kafka 拦截器自 0.10.0.0 版本被引入后并未得到太多的实际应用，我也从未在任何 Kafka 技术峰会上看到有公司分享其使用拦截器的成功案例。但即便如此，在自己的 Kafka 工具箱中放入这么一个有用的东西依然是值得的。今天我们就让它来发挥威力，展示一些非常酷炫的功能。
+
+Kafka 拦截器
+
+Kafka 拦截器分为生产者拦截器和消费者拦截器。生产者拦截器允许你在发送消息前以及消息提交成功后植入你的拦截器逻辑；而消费者拦截器支持在消费消息前以及提交位移后编写特定逻辑。值得一提的是，这两种拦截器都支持链的方式，即你可以将一组拦截器串连成一个大的拦截器，Kafka 会按照添加顺序依次执行拦截器逻辑。
+
+举个例子，假设你想在生产消息前执行两个“前置动作”：第一个是为消息增加一个头信息，封装发送该消息的时间，第二个是更新发送消息数字段，那么当你将这两个拦截器串联在一起统一指定给 Producer 后，Producer 会按顺序执行上面的动作，然后再发送消息。
+
+当前 Kafka 拦截器的设置方法是通过参数配置完成的。生产者和消费者两端有一个相同的参数，名字叫 interceptor.classes，它指定的是一组类的列表，每个类就是特定逻辑的拦截器实现类。拿上面的例子来说，假设第一个拦截器的完整类路径是 com.yourcompany.kafkaproject.interceptors.AddTimeStampInterceptor，第二个类是 com.yourcompany.kafkaproject.interceptors.UpdateCounterInterceptor，那么你需要按照以下方法在 Producer 端指定拦截器：
+
+
+Properties props = new Properties();
+List<String> interceptors = new ArrayList<>();
+interceptors.add("com.yourcompany.kafkaproject.interceptors.AddTimestampInterceptor"); // 拦截器1
+interceptors.add("com.yourcompany.kafkaproject.interceptors.UpdateCounterInterceptor"); // 拦截器2
+props.put(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, interceptors);
+
+现在问题来了，我们应该怎么编写 AddTimeStampInterceptor 和 UpdateCounterInterceptor 类呢？其实很简单，这两个类以及你自己编写的所有 Producer 端拦截器实现类都要继承 org.apache.kafka.clients.producer.ProducerInterceptor 接口。该接口是 Kafka 提供的，里面有两个核心的方法。
+
+1。onSend：该方法会在消息发送之前被调用。如果你想在发送之前对消息“美美容”，这个方法是你唯一的机会。
+2。onAcknowledgement：该方法会在消息成功提交或发送失败之后被调用。还记得我在上一期中提到的发送回调通知 callback 吗？onAcknowledgement 的调用要早于 callback 的调用。值得注意的是，这个方法和 onSend 不是在同一个线程中被调用的，因此如果你在这两个方法中调用了某个共享可变对象，一定要保证线程安全哦。还有一点很重要，这个方法处在 Producer 发送的主路径中，所以最好别放一些太重的逻辑进去，否则你会发现你的 Producer TPS 直线下降。
+
+同理，指定消费者拦截器也是同样的方法，只是具体的实现类要实现 org.apache.kafka.clients.consumer.ConsumerInterceptor 接口，这里面也有两个核心方法。
+
+1。onConsume：该方法在消息返回给 Consumer 程序之前调用。也就是说在开始正式处理消息之前，拦截器会先拦一道，搞一些事情，之后再返回给你。
+2。onCommit：Consumer 在提交位移之后调用该方法。通常你可以在该方法中做一些记账类的动作，比如打日志等。
+
+一定要注意的是，指定拦截器类时要指定它们的全限定名，即 full qualified name。通俗点说就是要把完整包名也加上，不要只有一个类名在那里，并且还要保证你的 Producer 程序能够正确加载你的拦截器类。
+
+典型使用场景
+
+Kafka 拦截器都能用在哪些地方呢？其实，跟很多拦截器的用法相同，Kafka 拦截器可以应用于包括客户端监控、端到端系统性能检测、消息审计等多种功能在内的场景。
+
+我以端到端系统性能检测和消息审计为例来展开介绍下。
+
+今天 Kafka 默认提供的监控指标都是针对单个客户端或 Broker 的，你很难从具体的消息维度去追踪集群间消息的流转路径。同时，如何监控一条消息从生产到最后消费的端到端延时也是很多 Kafka 用户迫切需要解决的问题。
+
+从技术上来说，我们可以在客户端程序中增加这样的统计逻辑，但是对于那些将 Kafka 作为企业级基础架构的公司来说，在应用代码中编写统一的监控逻辑其实是很难的，毕竟这东西非常灵活，不太可能提前确定好所有的计算逻辑。另外，将监控逻辑与主业务逻辑耦合也是软件工程中不提倡的做法。
+
+现在，通过实现拦截器的逻辑以及可插拔的机制，我们能够快速地观测、验证以及监控集群间的客户端性能指标，特别是能够从具体的消息层面上去收集这些数据。这就是 Kafka 拦截器的一个非常典型的使用场景。
+
+我们再来看看消息审计（message audit）的场景。设想你的公司把 Kafka 作为一个私有云消息引擎平台向全公司提供服务，这必然要涉及多租户以及消息审计的功能。
+
+作为私有云的 PaaS 提供方，你肯定要能够随时查看每条消息是哪个业务方在什么时间发布的，之后又被哪些业务方在什么时刻消费。一个可行的做法就是你编写一个拦截器类，实现相应的消息审计逻辑，然后强行规定所有接入你的 Kafka 服务的客户端程序必须设置该拦截器。
+
+案例分享
+
+下面我以一个具体的案例来说明一下拦截器的使用。在这个案例中，我们通过编写拦截器类来统计消息端到端处理的延时，非常实用，我建议你可以直接移植到你自己的生产环境中。
+
+我曾经给一个公司做 Kafka 培训，在培训过程中，那个公司的人提出了一个诉求。他们的场景很简单，某个业务只有一个 Producer 和一个 Consumer，他们想知道该业务消息从被生产出来到最后被消费的平均总时长是多少，但是目前 Kafka 并没有提供这种端到端的延时统计。
+
+学习了拦截器之后，我们现在知道可以用拦截器来满足这个需求。既然是要计算总延时，那么一定要有个公共的地方来保存它，并且这个公共的地方还是要让生产者和消费者程序都能访问的。在这个例子中，我们假设数据被保存在 Redis 中。
+
+Okay，这个需求显然要实现生产者拦截器，也要实现消费者拦截器。我们先来实现前者：
+
+
+public class AvgLatencyProducerInterceptor implements ProducerInterceptor<String, String> {
+
+
+    private Jedis jedis; // 省略Jedis初始化
+
+
+    @Override
+    public ProducerRecord<String, String> onSend(ProducerRecord<String, String> record) {
+        jedis.incr("totalSentMessage");
+        return record;
+    }
+
+
+    @Override
+    public void onAcknowledgement(RecordMetadata metadata, Exception exception) {
+    }
+
+
+    @Override
+    public void close() {
+    }
+
+
+    @Override
+    public void configure(Map<java.lang.String, ?> configs) {
+    }
+
+上面的代码比较关键的是在发送消息前更新总的已发送消息数。为了节省时间，我没有考虑发送失败的情况，因为发送失败可能导致总发送数不准确。不过好在处理思路是相同的，你可以有针对性地调整下代码逻辑。
+
+下面是消费者端的拦截器实现，代码如下：
+
+
+public class AvgLatencyConsumerInterceptor implements ConsumerInterceptor<String, String> {
+
+
+    private Jedis jedis; //省略Jedis初始化
+
+
+    @Override
+    public ConsumerRecords<String, String> onConsume(ConsumerRecords<String, String> records) {
+        long lantency = 0L;
+        for (ConsumerRecord<String, String> record : records) {
+            lantency += (System.currentTimeMillis() - record.timestamp());
+        }
+        jedis.incrBy("totalLatency", lantency);
+        long totalLatency = Long.parseLong(jedis.get("totalLatency"));
+        long totalSentMsgs = Long.parseLong(jedis.get("totalSentMessage"));
+        jedis.set("avgLatency", String.valueOf(totalLatency / totalSentMsgs));
+        return records;
+    }
+
+
+    @Override
+    public void onCommit(Map<TopicPartition, OffsetAndMetadata> offsets) {
+    }
+
+
+    @Override
+    public void close() {
+    }
+
+
+    @Override
+    public void configure(Map<String, ?> configs) {    
+
+在上面的消费者拦截器中，我们在真正消费一批消息前首先更新了它们的总延时，方法就是用当前的时钟时间减去封装在消息中的创建时间，然后累计得到这批消息总的端到端处理延时并更新到 Redis 中。之后的逻辑就很简单了，我们分别从 Redis 中读取更新过的总延时和总消息数，两者相除即得到端到端消息的平均处理延时。
+
+创建好生产者和消费者拦截器后，我们按照上面指定的方法分别将它们配置到各自的 Producer 和 Consumer 程序中，这样就能计算消息从 Producer 端到 Consumer 端平均的处理延时了。这种端到端的指标监控能够从全局角度俯察和审视业务运行情况，及时查看业务是否满足端到端的 SLA 目标。
+
+小结
+
+今天我们花了一些时间讨论 Kafka 提供的冷门功能：拦截器。如之前所说，拦截器的出场率极低，以至于我从未看到过国内大厂实际应用 Kafka 拦截器的报道。但冷门不代表没用。事实上，我们可以利用拦截器满足实际的需求，比如端到端系统性能检测、消息审计等。
+
+从这一期开始，我们将逐渐接触到更多的实际代码。看完了今天的分享，我希望你能够亲自动手编写一些代码，去实现一个拦截器，体会一下 Kafka 拦截器的功能。要知道，“纸上得来终觉浅，绝知此事要躬行”。也许你在敲代码的同时，就会想到一个使用拦截器的绝妙点子，让我们拭目以待吧。
+【04-配图-Kafka拦截器.jpg】
+ 
+开放讨论
+
+思考这样一个问题：Producer 拦截器 onSend 方法的签名如下：
+
+public ProducerRecord<K, V> onSend(ProducerRecord<K, V> record)
+
+如果我实现的逻辑仅仅是 return null，你觉得 Kafka 会丢弃该消息，还是原封不动地发送消息？请动手试验一下，看看结果是否符合你的预期。
+
+欢迎写下你的思考和答案，我们一起讨论。如果你觉得有所收获，也欢迎把文章分享给你的朋友。
+
+精选留言(27)
+
+
+风中花
+胡老师您好！ 我公司现在就我一个人懂点kafka，但是公司线下却有使用kafka，现在知道我学习这个就交给我了，我现在遇到一个线上问题：消息经常堆积起来，不能消费了，重启服务就能继续消费了。我目前得能力还搞不定，望老师能给指点一二 。谢谢。谢谢
+作者回复: 消息堆积可能原因如下：1. 生产速度大于消费速度，这样可以适当增加分区，增加consumer数量，提升消费TPS；2. consumer消费性能低，查一下是否有很重的消费逻辑（比如拿到消息后写HDFS或HBASE这种逻辑就挺重的），看看是否可以优化consumer TPS；3. 确保consumer端没有因为异常而导致消费hang住; 4. 如果你使用的是消费者组，确保没有频繁地发生rebalance
+
+主要排查下可能是哪些原因
+2019-07-04
+
+2
+
+15
+
+落霞与孤鹜
+这个问题和这期的内容没关系😓。
+
+如果一个主题，由一个应用的名为A的消费组消费，然后把消费组名改为B，重新发布应用，这个时候是不是从主题的分区头开始消费？如何保证从上次A消费组的最新偏移量处开始消费？
+作者回复: 我假设你指的名字是group.id。那么把A改成B对于Kafka而言就是新的consumer。新consumer从头还是从最新开始消费取决于auto.offset.reset的设置
+2019-06-30
+
+
+5
+
+Lei@时速云
+👍 胡总出专栏了
+作者回复: 磊总别闹：）
+2019-06-29
+
+
+2
+
+小头针
+我们的应用场景是这样的，将采集到的数据接收到kafka，并由kafka再进行生产供下一逻辑消费，消费的数据进行一些业务的修改，最后进入到查询平台中，但是经常会出现采集端的数据与查询端的数据量相差较大的情况，所以我们就简单的统计了数据写入到redis中。
+
+胡老师，请问Interceptor可以对生产者生产的数据以及消费者消费的数据进行统计么？
+
+
+作者回复: 可以啊，你想在里面实现什么样的逻辑都行。
+2019-07-05
+
+
+1
+
+张庆
+return null ; 报错了，NullPointException错误，KafkaProducer doSend方法里面获取消息主题和分区。
+2019-07-02
+
+1
+
+1
+
+Liam
+请问下老师。onsend或onconsumer的执行线程和发送或消费消息的线程是否是同一个线程？加入太多耗时逻辑是否会影响主逻辑？
+作者回复: onsend是producer进程下的线程；onConsume是consumer进程下的线程，它们不是一个进程。我说的是onSend和onAcknowledgement是一个进程下的多个线程。
+2019-06-29
+
+
+1
+
+进击的姬哥
+Interceptor处理数据是单条的吗，还是多条数据作为一个集合
+作者回复: 单条消息
+2019-11-23
+
+
+
+James
+不知道是kafka问题还是项目问题= =
+2019-11-13
+
+
+
+James
+老师,刚才的问题描述,线上环境只有一个消费组消费,看异常好像是一个分区坏了,导致重新平衡.才导致挂了
+作者回复: 嗯嗯，分区坏了？
+2019-11-13
+
+James
+请问老师无法完成提交,是因为重新平衡,是什么原因才会导致.
+刚接触不久,就要修改线上环境问题.但是一直跑了一小时就会下面问题,然后oom
+Group coordinator rl-hadoop5.gci.com:9092 (id: 2147483646 rack: null) is unavailable or invalid, will attempt rediscovery
+
+
+Offset commit failed on partition dispatch_bus-1 at offset 28978632: The coordinator is not aware of this member.
+
+
+Commit cannot be completed since the group has already rebalanced and assigned the partitions to another member. This means that the time between subsequent calls to poll() was longer than the configured max.poll.interval.ms, which typically implies that the poll loop is spending too much time message processing. You can address this either by increasing the session timeout or by reducing the maximum size of batches returned in poll() with max.poll.records.
+作者回复: 我的经验是先解决OOM的问题吧。至于commit 失败，通常是因为事件处理的速度太慢了
+2019-11-13
+
+
+
+此方彼方Francis
+老师好，在kafka的interceptor里面实现权限控制的逻辑合适吗？
+假设说有另外一个服务维护了IP和topic之间的关系，在interceptor里面线获取到本机ip有权限的topic列表，然后每次发消息的时候做判断。
+作者回复: Kafka本身也提供了一整套权限控制的逻辑。当然如果你这么用能满足你的需求，我觉得没有任何问题：）
+2019-10-28
+
+
+
+我已经设置了昵称
+老师，遇到个问题， 自己建了个consumer的interceptor，需要在interceptor中收到消息后，发送响应消息给发送方，但发现interceptor这个实例并没有被spring管理起来，就需要自己再new一个producer。但这个kafka配置又是配置在配置中心，也读不到，只能写死了。有啥好的方法吗
+作者回复: 可以复用你在Spring中创建的producer吗？
+2019-09-24
+
+1
+
+
+godtrue
+胡老师好，请教两个小问题
+1：broker通过网络拿到消息后，落盘的规则是什么？来一条消息就落盘一条？还是积攒够一定的量再落盘？
+2：从追主，新的消息是主主动推给各个从的？还是从主动拉取的？如果是主动拉取，从怎么知道主有新的消息的？另外，同步的时候是只要有一条新消息就同步嘛？
+如果其他同学清楚，也请帮忙解答一下，多谢。
+作者回复: 1. 实际上这个交由OS来决定，Kafka不管
+2. 从拉取的方式。Kafka定义了水位的概念来标识拉取的进度
+2019-08-14
+
+
+
+小可
+老师好，有个场景想请教下。我们发送的数据是个大json，大概500K，有一百多的字段，其中一个字段450K是图片base64，发送的速度不到100条/秒，像这种大消息体数据的发送，kafka有什么好的办法么？
+作者回复: 没什么太好的方法。你可以试试压缩。其实消息队列本不适合发送太大的消息体
+2019-08-01
+
+2
+
+
+撒旦的堕落
+我看到老师回答的onsend 和onAcknowledgement是生产者进程下的不同线程 既然都是子线程 为啥又特意提到onAcknowledgement这个方法又处在发送的主路径中 难道是源码中对这两个方法的调用有区别？
+作者回复: 这两个方法是在不同的线程中被调用的
+2019-07-31
+
+
+
+杨陆伟
+System.currentTimeMillis() - record.timestamp() 是否要求生产客户端设置record的timestamp字段？还是Producer Client会自动生成？对于Kafka中的timestamp还搞不太清楚，这对监控比较关键，不知道后面有没有介绍，谢谢
+作者回复: 默认情况下是消息发生时producer程序所在机器时钟
+2019-07-19
+
+
+
+风中花
+又看了一次！
+2019-07-09
+
+
+
+October
+请问老师，kafka Interceptor可以对客户端做哪些监控？可以举个例子吗？
+作者回复: 类似于埋点的逻辑。可以在消息处理（发送或消费）的 各个环节埋一些你在意的统计逻辑进去
+2019-07-04
+
+
+
+mellow
+拦 截 器可以支持在服务端boker吗
+作者回复: 不支持
+2019-07-03
+
+
+
+Geek_Sue
+胡老师，我想问下您文中的例子，在onConsume的时候，是否会存在这一时刻Producer仍然在发送消息，然后totalSentMessage这个值拿到的偏小，并不完全准确呢？
+作者回复: 事实上，即使不用Kafka的拦截器，这种计数类的指标也可能有些许的不准确，不过应该没关系吧。
+2019-07-01
+
+
+
+风中花
+看完了，打个卡！ 这个东西设计思想其实不少变成语言都有，思想还是好理解，但是具体到一些特定应用场合是应该好好品味一番！先装kafka ,来实战下！哇咔咔
+2019-07-01
+
+
+
+永光
+拦 截 器 会对Tps产生影响，怎样权衡？
+作者回复: 要看你的拦截器逻辑是怎么样的了。通常不会有太大影响，。
+2019-07-01
+
+
+
+打码的土豆
+老师你好 最近在看kafka官方文档时有一处没看懂还望老师指教 
+All data is immediately written to a persistent log on the filesystem without necessarily flushing to disk. In effect this just means that it is transferred into the kernel's pagecache
+这上面说的文件系统上的持久日志为什么会是pagecache pagecache不是内存的一部分吗
+作者回复: 它这句话的意思是不需要用户手动调用flush来刷盘，由os自己来做：)
+2019-07-01
+
+
+
+王槐铤
+onSend传null会在KafkaProducer类中调用doSend时引发NPE，并通过 ProducerInterceptors.onSendError 方法传导至onAcknowledgement，以及throw到用户编写的Producer中。
+2019-06-30
+
+
+
+lmtoo
+这个怎么保证不同机器的时钟频率是一样的？，如果不完全一样，误差应该会越累积越大
+作者回复: 时钟频率？你是说时钟保持一样吗？一般使用NTP。
+2019-06-29
+
+
+
+振超
+Producer 发送的是被 ProducerInterceptor 修改后的消息，返回 null 也是一种修改的行为，所以 kafka 不应该对这种情况特殊对待。不过将 null 发送到服务端没有意义，实际执行会出现 NPE，不过异常最终会被捕获传递给 ProducerInterceptor 的 onAcknowledgement 方法。
+2019-06-29
+
+
+
+明翼
+没试验，我觉得是会继续，原因是拦 截器是链式实现的，如果这个拦 截器丢了，后续的如何调用那？
+2019-06-29
+
+
