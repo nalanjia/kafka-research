@@ -1,0 +1,36 @@
+所有问题，基于服务器版kafka_2.12-2.3.1.tgz，客户端<kafka.version>2.3.1</kafka.version>
+【问题】org.apache.kafka.common.errors.TimeoutException
+-- 问题描述
+producer生产消息，调用kafkaTemplate.send("kafka_eagle_topic_1", "消息内容")
+报错内容为：org.apache.kafka.common.errors.TimeoutException: 
+Topic kafka_eagle_topic_1 not present in metadata after 60000 ms.
+
+-- 解决问题：60000时间太长了，能不能短点
+spring.kafka.producer.max-block-ms=4000
+但是，springboot的KafkaProperties不支持max-block-ms，需要自己改改KafkaProperties
+
+后来，无意中扫了扫官方，发现springboot提供了扩展，配置方法是这样
+spring.kafka.producer.properties.max.block.ms=3000
+呵呵，这样一来，springboot可以支持kafka的所有参数了
+重要级别为high，部分medium，low，配置方法是这样。有小横杠。具体哪些看KafkaProperties即可：
+spring.kafka.bootstrap-servers
+其余的，以properties的方式，是这样。注意properties后边是点号：
+spring.kafka.producer.properties.max.block.ms
+
+
+【问题】如何通过外网访问kafka
+advertised.listeners=PLAINTEXT://62.234.119.66:9092
+
+奇葩的地方是什么？反复试验，总结出这2个法则
+1。9092不能改
+2。参数listeners必须注释掉
+
+至于为什么会这样，可能和kafka版本有关系，偶的是kafka_2.12-2.3.1.tgz
+也可能和linux服务器是单网卡有关系
+
+
+
+
+
+
+
