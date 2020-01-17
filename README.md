@@ -1,4 +1,3 @@
 # kafka-research
-test
-github页面直接操作
-eclipse操作
+spring.kafka.bootstrap-servers=**.**.**.**:9092
+请自行设置可用的IP
