@@ -1,8 +1,8 @@
-./kafka_2.12-2.3.1/bin/kafka-console-consumer.sh --bootstrap-server 62.234.119.66:9092 --topic topic_health --group foo --from-beginning
+./kafka_2.12-2.3.1/bin/kafka-console-consumer.sh --bootstrap-server **.**.**.**:9092 --topic topic_health --group foo --from-beginning
 
 
 ./kafka_2.12-2.3.1/bin/kafka-console-consumer.sh \
---bootstrap-server 62.234.119.66:9092 \
+--bootstrap-server **.**.**.**:9092 \
 --group foo --from-beginning \
 --topic topic_1p_1r
 

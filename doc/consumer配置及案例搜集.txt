@@ -96,8 +96,10 @@ ssl.trustmanager.algorithm
 
 
 -------------------------------------------------------------
-
-
+【案例】如何人为造成消费者不消费？
+com.aebiz.controller.ConsumerController
+stop和pause都会导致消费者监听容器不消费。详情见官网生命周期的介绍
+https://docs.spring.io/spring-kafka/docs/2.3.3.RELEASE/reference/html/#kafkalistener-lifecycle
 
 
 

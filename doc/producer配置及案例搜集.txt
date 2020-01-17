@@ -80,7 +80,7 @@ transactional.id
 
 1。偶先来描述metadata unavailable的场景
 在application.properties，假如你故意配错broker地址，比如你配置为
-spring.kafka.bootstrap-servers=62.234.119.66:1000
+spring.kafka.bootstrap-servers=**.**.**.**:1000
 但是1000端口有防火墙，根本没开。此时你去生产消息kafkaTemplate.send(topicName, msg)
 会得到报错Topic xxx not present in metadata after 60000 ms.
 max.block.ms，默认值就是60秒。怎么定位到max.block.ms的？

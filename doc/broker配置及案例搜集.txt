@@ -213,13 +213,13 @@ CreateTime, LogAppendTime
 
 设置
 ./kafka_2.12-2.3.1/bin/kafka-configs.sh \
---bootstrap-server 62.234.119.66:9092 \
+--bootstrap-server **.**.**.**:9092 \
 --entity-type brokers --entity-default --alter \
 --add-config log.message.timestamp.type=LogAppendTime
 
 查看
 ./kafka_2.12-2.3.1/bin/kafka-configs.sh \
---bootstrap-server 62.234.119.66:9092 \
+--bootstrap-server **.**.**.**:9092 \
 --entity-type brokers --entity-default --describe
 
 命令帮助

@@ -63,7 +63,7 @@ netstat -antp|grep 1000
 2.怎么看zookeeper的数据呢？偶提供一个办法，好用得很啊，就是下载镜像这步慢死
 		docker run \
 		--name dev-zkui \
-		-e ZKLIST='62.234.119.66:2100' \
+		-e ZKLIST='**.**.**.**:2100' \
 		-p 2101:9090 \
 		-d maauso/zkui
 

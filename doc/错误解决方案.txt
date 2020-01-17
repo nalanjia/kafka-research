@@ -19,7 +19,7 @@ spring.kafka.producer.properties.max.block.ms
 
 
 【问题】如何通过外网访问kafka
-advertised.listeners=PLAINTEXT://62.234.119.66:9092
+advertised.listeners=PLAINTEXT://**.**.**.**:9092
 
 奇葩的地方是什么？反复试验，总结出这2个法则
 1。9092不能改
