@@ -4,7 +4,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 
-import com.aebiz.util.OtherUtil;
+import com.aebiz.util.KaResearchConstant;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -12,9 +12,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class KafkaListenerConfig {
 
-	//正则监听主题，注意*前边的.
-	@KafkaListener(topicPattern = "${topic.1p.1r:topic.1p.1r.*}"
-			, id = "group-1p1r"
+	//topicPattern：可配置，支持监听正则
+	//id：可配置，用于支持暂停、恢复
+	//errorHandler：错误处理
+	@KafkaListener(
+			topicPattern = "${kafkalistener.topicpattern.1p1r:topic.1p.1r.*}"
+			, id = "${kafkalistener.id.1p1r:group-1p1r}"
 			, errorHandler = "myErrorHandler"
 			)
     public void listen(String msg, Acknowledgment ack) {
@@ -28,6 +31,7 @@ public class KafkaListenerConfig {
 		}
 		
 		log.debug("正常reveive msg : " + msg);
+		//手动提交
 		ack.acknowledge();
     }
 	
