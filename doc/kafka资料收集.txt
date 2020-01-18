@@ -19,7 +19,7 @@ springboot kafka
 https://docs.spring.io/spring-boot/docs/2.2.1.RELEASE/reference/htmlsingle/#legal
 
 spring boot集成kafka之spring-kafka深入探秘
-https://blog.csdn.net/zzpdljd1991/article/details/90794156
+http://www.kailing.pub/article/index/arcid/243.html
 
 胡夕的博客
 https://www.cnblogs.com/huxi2b/
