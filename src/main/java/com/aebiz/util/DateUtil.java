@@ -1,17 +1,17 @@
 package com.aebiz.util;
 
 import java.time.DayOfWeek;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.Month;
 import java.time.MonthDay;
 import java.time.Period;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
+import java.util.Date;
 import java.util.List;
 
 import com.google.common.collect.Lists;
@@ -91,6 +91,17 @@ public class DateUtil {
 	public static String getNowTime_EN() {
 		return LocalDateTime.now().format(yyyyMMddHHmmss_EN);
 	}
+	public static String parseTime_EN(long time) {
+		Date date = new Date(time);
+		String str = date.toInstant()
+		        .atZone(ZoneId.systemDefault())
+		        .toLocalDateTime()
+		        .format(yyyyMMddHHmmss_EN);
+		return str;
+		
+	}
+	
+	
 
 	/** 获取当前时间（yyyy-MM-dd HH） */
 	public static String getNowTime_EN_yMdH() {

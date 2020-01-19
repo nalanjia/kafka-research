@@ -1,7 +1,10 @@
 package com.aebiz.controller;
 
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.StringUtils;
@@ -9,14 +12,17 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.ConsumerGroupListing;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsResult;
 import org.apache.kafka.clients.admin.ListConsumerGroupsResult;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.header.Headers;
+import org.apache.kafka.common.record.TimestampType;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.aebiz.config.KafkaResearchConfig;
 import com.aebiz.util.ConsumerUtil;
+import com.aebiz.util.DateUtil;
 import com.aebiz.util.OtherUtil;
 
 @RestController
@@ -213,6 +220,56 @@ public class ConsumerController {
 		return str;
 	}
 
-	
+	/**
+	 * 指定消费位移，并消费length个消息
+	 * http://localhost:9201/consumer/seekOffset?topic=topic_1p_1r&partition=0&offset=21&length=1
+	 */
+	@RequestMapping("/seekOffset")
+	public String seekOffset(String topic, int partition, long offset, int length) {
+		TopicPartition tp = new TopicPartition(topic, partition);
+		
+		KafkaConsumer consumer = kafkaTemplateConfig.getKafkaConsumer();
+		consumer.assign(Arrays.asList(tp));		
+		
+		consumer.seek(tp, offset);
+		
+		StringBuffer buf = new StringBuffer(OtherUtil.getNow());
+		buf.append("<br>已将主题[" + topic + "]的分区[" + partition + "]的消费位置设置为[" + offset + "]");
+		
+		String spanBegin = "<span style='color:red;font-weight:bold;'>";
+		String spanEnd = "</span>";
+		ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+		
+		int count = 0;
+		for (ConsumerRecord<String, String> record : records) {
+			Headers headers = record.headers();
+			String key = record.key();
+			Optional<Integer> leaderEpoch = record.leaderEpoch();
+			long offsetLong = record.offset();
+			int partitionInt = record.partition();
+			TimestampType timestampType = record.timestampType();
+			long timestamp = record.timestamp();
+			String topicStr = record.topic();
+			String value = record.value();
+			buf.append("<br>" + spanBegin + "offset : " + offsetLong + spanEnd);
+			buf.append("<br>　　headers : " + headers);
+			buf.append("<br>　　key : " + key);
+			buf.append("<br>　　leaderEpoch : " + leaderEpoch);
+			buf.append("<br>　　partition : " + partitionInt);
+			buf.append("<br>　　tTimestampType : " + timestampType);
+			buf.append("<br>　　timestamp : " + timestamp);
+			buf.append("<br>　　timestampStr : " + DateUtil.parseTime_EN(timestamp));
+			buf.append("<br>　　topic : " + topicStr);
+			buf.append("<br>　　value : " + value);
+			buf.append("<br>---------------------");
+			
+			count++;
+			if(count > length) {
+				break;
+			}
+		}
+		
+		return buf.toString();
+	}
 	
 }
