@@ -138,6 +138,7 @@ public class ConsumerUtil {
 				buf.append("<br>　　　　分区编号 : " + partition.partition());
 				buf.append("<br>　　　　消费位移 : " + meta.offset());
 				buf.append("<br>　　　　　　LEO : " + leo);
+				buf.append("<br>　　　　　　LAG : " + (leo - meta.offset()));
 				buf.append("<br>　　　　--------------------");
 			});
 			buf.append("<br>　　----------------------------------------");
