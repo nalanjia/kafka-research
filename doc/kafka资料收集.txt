@@ -46,4 +46,6 @@ Kafka Timestamp
 https://blog.csdn.net/YHYR_YCY/article/details/86619278
 https://www.cnblogs.com/huxi2b/p/6050778.html
 
+Kafka消费者 之 指定位移消费
+https://cloud.tencent.com/developer/article/1469392
 
