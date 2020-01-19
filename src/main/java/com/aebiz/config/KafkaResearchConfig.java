@@ -1,11 +1,20 @@
 package com.aebiz.config;
 
+import java.util.Map;
+
+import javax.annotation.PostConstruct;
+
 import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.stereotype.Component;
 
 import kafka.utils.Json;
@@ -37,17 +46,43 @@ public class KafkaResearchConfig {
 	/**
 	 * 监听器生命周期
 	 */
-	private KafkaListenerEndpointRegistry kKafkaListenerEndpointRegistry;
+	private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
+	/**
+	 * spring kafka配置，主要为了拿到配置
+	 */
+	private KafkaProperties kafkaProperties;
+	/**
+	 * 消费者（没有默认的bean暴露，得自己新建）
+	 */
+	private KafkaConsumer kafkaConsumer;
+	
+	/**
+	 * 消费者（没有默认的bean暴露，得自己新建）
+	 */
+	@Bean
+	@ConditionalOnMissingBean(ProducerFactory.class)
+	public KafkaConsumer initKafkaConsumer() {
+		if(this.kafkaConsumer == null) {
+			Map<String, Object> configs = this.getKafkaProperties().buildConsumerProperties();
+			KafkaConsumer<String, String> consumer = new KafkaConsumer<>(configs);
+			this.kafkaConsumer = consumer;
+		}
+		return this.kafkaConsumer;
+	}
+	
 	
 	@Value("${spring.kafka.admin.fail-fast:false}")
 	private String failFast;
 	
-	
-	
     @Autowired
     public void initKafkaListenerEndpointRegistry(KafkaListenerEndpointRegistry ele) {
-    	this.kKafkaListenerEndpointRegistry = ele;
+    	this.kafkaListenerEndpointRegistry = ele;
     	log.debug("项目启动时，已初始化KafkaListenerEndpointRegistry : " + ele);
+    }
+    @Autowired
+    public void initKafkaProperties(KafkaProperties ele) {
+    	this.kafkaProperties = ele;
+    	log.debug("项目启动时，已初始化KafkaProperties : " + ele);
     }
     @Autowired
     public void initKafkaTemplate(KafkaTemplate<String, String> ele) {
@@ -81,8 +116,8 @@ public class KafkaResearchConfig {
 	public KafkaAdmin getKafkaAdmin() {
 		return this.kafkaAdmin;
 	}
-	public KafkaListenerEndpointRegistry getkKafkaListenerEndpointRegistry() {
-		return kKafkaListenerEndpointRegistry;
+	public KafkaListenerEndpointRegistry getKafkaListenerEndpointRegistry() {
+		return kafkaListenerEndpointRegistry;
 	}
 	public AdminClient getAdminClient() {
 		if(this.adminClient == null) {
@@ -91,6 +126,12 @@ public class KafkaResearchConfig {
 			this.adminClient = client;
 		}
 		return this.adminClient;
+	}
+	public KafkaProperties getKafkaProperties() {
+		return kafkaProperties;
+	}
+	public KafkaConsumer getKafkaConsumer() {
+		return kafkaConsumer;
 	}
 	
 }

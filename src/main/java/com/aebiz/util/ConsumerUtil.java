@@ -104,7 +104,8 @@ public class ConsumerUtil {
 	/**
 	 * 展示消费者组的消费进度
 	 */
-	public static String prepareGroupIdDetails(Map<TopicPartition, OffsetAndMetadata> map) {
+	public static String prepareGroupIdDetails(Map<TopicPartition, OffsetAndMetadata> map,
+			Map<TopicPartition, Long> leos) {
 		//按topic分组
 		Map<String, List<TopicPartition>> topicMap = 
 				new HashMap<>();
@@ -133,8 +134,10 @@ public class ConsumerUtil {
 			
 			partitionList.forEach(partition -> {
 				OffsetAndMetadata meta = map.get(partition);
+				Long leo = leos.get(partition);
 				buf.append("<br>　　　　分区编号 : " + partition.partition());
 				buf.append("<br>　　　　消费位移 : " + meta.offset());
+				buf.append("<br>　　　　　　LEO : " + leo);
 				buf.append("<br>　　　　--------------------");
 			});
 			buf.append("<br>　　----------------------------------------");

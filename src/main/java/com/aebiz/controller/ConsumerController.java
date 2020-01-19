@@ -1,26 +1,22 @@
 package com.aebiz.controller;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.ConsumerGroupListing;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsResult;
 import org.apache.kafka.clients.admin.ListConsumerGroupsResult;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -43,7 +39,7 @@ public class ConsumerController {
 	 */
 	@RequestMapping("/stop")
 	public String stop(@RequestParam("listenerId") String listenerId) {
-		MessageListenerContainer container = kafkaTemplateConfig.getkKafkaListenerEndpointRegistry()
+		MessageListenerContainer container = kafkaTemplateConfig.getKafkaListenerEndpointRegistry()
 		.getListenerContainer(listenerId);
 		
 		if(container == null) {
@@ -59,7 +55,7 @@ public class ConsumerController {
 	 */
 	@RequestMapping("/start")
 	public String start(@RequestParam("listenerId") String listenerId) {
-		MessageListenerContainer container = kafkaTemplateConfig.getkKafkaListenerEndpointRegistry()
+		MessageListenerContainer container = kafkaTemplateConfig.getKafkaListenerEndpointRegistry()
 		.getListenerContainer(listenerId);
 		
 		if(container == null) {
@@ -75,7 +71,7 @@ public class ConsumerController {
 	 */
 	@RequestMapping("/resume")
 	public String resume(@RequestParam("listenerId") String listenerId) {
-		MessageListenerContainer container = kafkaTemplateConfig.getkKafkaListenerEndpointRegistry()
+		MessageListenerContainer container = kafkaTemplateConfig.getKafkaListenerEndpointRegistry()
 		.getListenerContainer(listenerId);
 		
 		if(container == null) {
@@ -91,7 +87,7 @@ public class ConsumerController {
 	 */
 	@RequestMapping("/pause")
 	public String pause(@RequestParam("listenerId") String listenerId) {
-		MessageListenerContainer container = kafkaTemplateConfig.getkKafkaListenerEndpointRegistry()
+		MessageListenerContainer container = kafkaTemplateConfig.getKafkaListenerEndpointRegistry()
 			.getListenerContainer(listenerId);
 		
 		if(container == null) {
@@ -108,7 +104,7 @@ public class ConsumerController {
 	@RequestMapping("/list")
 	public String list() {
 		StringBuffer buf = new StringBuffer();
-		Collection<MessageListenerContainer> list = kafkaTemplateConfig.getkKafkaListenerEndpointRegistry()
+		Collection<MessageListenerContainer> list = kafkaTemplateConfig.getKafkaListenerEndpointRegistry()
 			.getAllListenerContainers();
 		
 		buf.append("<br>" + OtherUtil.getNow() + "MessageListenerContainer总数量为[" + list.size() + "]");
@@ -209,7 +205,11 @@ public class ConsumerController {
 			return msg;
 		}
 		
-		String str = ConsumerUtil.prepareGroupIdDetails(map);
+		//分区的LEO(log end offset) 
+		KafkaConsumer consumer = kafkaTemplateConfig.getKafkaConsumer();
+		Map<TopicPartition, Long> leos = consumer.endOffsets(map.keySet());
+		
+		String str = ConsumerUtil.prepareGroupIdDetails(map, leos);
 		return str;
 	}
 
