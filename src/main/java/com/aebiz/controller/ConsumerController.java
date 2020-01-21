@@ -229,6 +229,7 @@ public class ConsumerController {
 		TopicPartition tp = new TopicPartition(topic, partition);
 		
 		KafkaConsumer consumer = kafkaTemplateConfig.getKafkaConsumer();
+		//assign不会使用消费者组机制的。不会触发重平衡
 		consumer.assign(Arrays.asList(tp));		
 		
 		consumer.seek(tp, offset);

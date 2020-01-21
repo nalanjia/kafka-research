@@ -29,10 +29,17 @@ public class ProducerController {
 	 */
 	@RequestMapping("/addOneMsg")
 //	@Transactional
-	public String addOneMsg(@RequestParam("topicName") String topicName
-			, @RequestParam("keyName") String keyName
-			, @RequestParam(value="msg",required=false) String msg
+	public String addOneMsg(@RequestParam(value="topicName", required=false) String topicName
+			, @RequestParam(value="keyName", required=false) String keyName
+			, @RequestParam(value="msg", required=false) String msg
 			) {
+		if(StringUtils.isBlank(topicName)) {
+			return "主题是必输项";
+		}
+		if(StringUtils.isBlank(keyName)) {
+			return "消息KEY是必输项";
+		}
+		
 		long t1 = System.currentTimeMillis();
 		//生成一条消息，将就着用
 		String oneMsg = GeneDataUtil.geneOneMessage();
