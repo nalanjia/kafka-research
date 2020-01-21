@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.aebiz.config.KafkaResearchConfig;
 import com.aebiz.util.GeneDataUtil;
+import com.aebiz.util.OtherUtil;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -80,10 +81,10 @@ public class ProducerController {
 		} catch(Exception e) {
 			e.printStackTrace();
 			long t2 = System.currentTimeMillis();
-			return "Fail, COST IS : " + (t2 - t1) + "ms, Exception IS : " + e.getMessage();
+			return OtherUtil.getNow() + " Fail, COST IS " + (t2 - t1) + "ms, Exception IS : " + e.getMessage();
 		}
 		long t2 = System.currentTimeMillis();
-		return "Success, COST IS : " + (t2 - t1) + "ms";
+		return OtherUtil.getNow() + " Success, COST IS " + (t2 - t1) + "ms";
 	}
 	
 	/**

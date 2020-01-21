@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!-- import CSS -->
+<link rel="stylesheet"
+	href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+<style type="text/css">
+.addOneMsg {
+	width: 500px;
+}
+.el-input {
+	width: 300px;
+}
+#app {
+	float: left;
+}
+#div2 {
+	float: left;
+	width: 400px;
+	margin-left: 50px;
+}
+</style>
+</head>
+<body>
+<div id="app">
+	<!-- 
+	el-form的3个属性
+	:model 该属性必须有，其值是JS变量，也必须存在
+	:rules 该属性必须有，其值是JS变量，也必须存在
+	ref 该属性必须有，用于定位表格this.$refs["该属性的值"]
+	
+	el-form-item的1个属性
+	prop 2个含义
+		 1盯着el-form.model+prop所代表的数据，数据一变，就去校验
+		 2是校验规则用哪个
+	
+	el-input，el-select的1个属性
+	v-model 去填充el-form.model+prop。这里数据一变，校验就被触发
+	
+	所以：
+	el-form.model + el-form-item.prop = el-input.v-model
+	举例：
+	pruducer.addOneMsg + topicName = pruducer.addOneMsg.topicName
+	 -->	
+	<el-form label-width="80px" :model="pruducer.addOneMsg" :rules="rules" ref="addOneMsgRef">
+		<el-form-item label="主题" prop="topicName">
+		  	<el-select v-model="pruducer.addOneMsg.topicName" placeholder="请选择">
+				<el-option
+					v-for="item in topicList"
+					:key="item.value"
+					:label="item.label"
+					:value="item.value">
+				</el-option>
+			</el-select>
+		</el-form-item>
+		<el-form-item label="消息KEY" prop="keyName">
+			<el-input suffix-icon="el-icon-search" maxlength="20" show-word-limit
+				v-model="pruducer.addOneMsg.keyName"> </el-input>
+		</el-form-item>
+		<el-form-item label="消息">
+			<el-input placeholder="选填" size="medium" suffix-icon="el-icon-search"
+				maxlength="20" show-word-limit v-model="pruducer.addOneMsg.msg">
+			</el-input>
+		</el-form-item>
+		<el-form-item>
+	    	<el-button type="primary" @click="addOneMsgValidate">向指定的topic生产1条消息</el-button>
+		</el-form-item>
+	</el-form>
+
+</div>
+
+<div id="div2">
+	<el-input
+		type="textarea"
+		:autosize="{ minRows: 2, maxRows: 10 }"
+		v-model="resultMsg"></el-input>
+</div>
+</body>
+<!-- import Vue before Element -->
+<script src="https://unpkg.com/vue/dist/vue.js"></script>
+<!-- import JavaScript -->
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+<!-- import ajax -->
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+var vueApp = new Vue({
+	el : '#app',
+	data : function() {
+		return {
+			//校验的JS变量，必须存在
+			pruducer : {
+       			addOneMsg : {},
+			},
+      		topicList : [],
+      		//校验的JS变量，必须存在
+      		rules : {
+				topicName : [
+					{ required : true, message : '请选择主题', trigger : 'blur' },
+				],
+      			keyName : [
+					{ required: true, message: '请选择KEY消息', trigger: 'blur' },
+				],
+      		},
+      		
+		} //return end
+	}, //data end
+     
+	mounted : function() {
+		this.getTopicListJson();
+	},
+     
+	methods : {
+		getTopicListJson : function() {
+			var that = this;
+			var url = '/topic/getTopicListJson';
+
+			axios({
+				method: 'post',
+				url: url
+  			  	})
+			.then(function (response) {
+				for (i in response.data) {
+					let ele = {
+						"label" : response.data[i],
+						"value" : response.data[i]
+					}
+					that.topicList.push(ele);
+				}
+			})
+			.catch(function (error) {
+				that.$message({
+					type: 'info',
+					message: error
+				});
+			});
+		},
+   	  
+		//校验通过，提交
+		addOneMsg : function() {
+			var that = this;
+			var url = '/producer/addOneMsg';
+
+			let param = new URLSearchParams()
+			if(that.pruducer.addOneMsg.topicName) {
+				param.append('topicName', that.pruducer.addOneMsg.topicName)
+			}
+			if(that.pruducer.addOneMsg.keyName) {
+				param.append('keyName', that.pruducer.addOneMsg.keyName)
+			}
+			if(that.pruducer.addOneMsg.msg) {
+				param.append('msg', that.pruducer.addOneMsg.msg)
+			}
+
+			axios({
+				method: 'post',
+   				url: url,
+   				data: param
+			})
+			.then(function (response) {
+				vueDiv2.resultMsg = response.data;
+			})
+			.catch(function (error) {
+				that.$message({
+					type: 'info',
+					message: error
+				});
+			});
+		},
+		
+		//校验方法，表单必须先调用校验方法
+		addOneMsgValidate() {
+			var that = this;
+			this.$refs["addOneMsgRef"].validate((valid) => {
+				if (valid) {
+					that.addOneMsg();
+				} else {
+					console.log('error submitFormAddOneMsg!');
+					return false;
+				}
+   	        });
+		},
+		
+	} //methods end
+}) //new Vue end
+
+var vueDiv2 = new Vue({
+	el : '#div2',
+	data : function() {
+		return {
+      		resultMsg : '',
+      		
+		} //return end
+	}, //data end
+     
+	
+}) //new Vue end
+</script>
+</html>
