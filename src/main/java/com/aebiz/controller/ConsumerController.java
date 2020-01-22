@@ -43,6 +43,7 @@ public class ConsumerController {
 	
 	/**
 	 * 关闭。关闭之后消费者就不存在了
+	 * http://localhost:9201/consumer/stop
 	 */
 	@RequestMapping("/stop")
 	public String stop(@RequestParam("listenerId") String listenerId) {
@@ -59,6 +60,7 @@ public class ConsumerController {
 	
 	/**
 	 * 打开。打开关闭的消费者，其实是新建了一个新的消费者
+	 * http://localhost:9201/consumer/start
 	 */
 	@RequestMapping("/start")
 	public String start(@RequestParam("listenerId") String listenerId) {
@@ -75,6 +77,7 @@ public class ConsumerController {
 	
 	/**
 	 * 恢复。消费者还是那个消费者，又可以消费了
+	 * http://localhost:9201/consumer/resume
 	 */
 	@RequestMapping("/resume")
 	public String resume(@RequestParam("listenerId") String listenerId) {
@@ -91,6 +94,7 @@ public class ConsumerController {
 	
 	/**
 	 * 暂停。消费者不会被销毁，仅仅是暂停一下，不能消费而已
+	 * http://localhost:9201/consumer/pause
 	 */
 	@RequestMapping("/pause")
 	public String pause(@RequestParam("listenerId") String listenerId) {
@@ -107,6 +111,7 @@ public class ConsumerController {
 	
 	/**
 	 * 查询监听器容器列表
+	 * http://localhost:9201/consumer/list
 	 */
 	@RequestMapping("/list")
 	public String list() {
@@ -114,52 +119,14 @@ public class ConsumerController {
 		Collection<MessageListenerContainer> list = kafkaTemplateConfig.getKafkaListenerEndpointRegistry()
 			.getAllListenerContainers();
 		
-		buf.append("<br>" + OtherUtil.getNow() + "MessageListenerContainer总数量为[" + list.size() + "]");
-		
-		list.forEach(t -> {
-			Collection<TopicPartition> topicPartitions = t.getAssignedPartitions();
-			ContainerProperties containerProperties = t.getContainerProperties();
-			String groupId = t.getGroupId();
-			String listenerId = t.getListenerId();
-			int phase = t.getPhase();
-			boolean isAutoStartup = t.isAutoStartup();
-			boolean isContainerPaused = t.isContainerPaused();
-			boolean isPauseRequested = t.isPauseRequested();
-			boolean isRunning = t.isRunning();
-			Map<String, Map<MetricName, ? extends Metric>> metrics = t.metrics();
-			
-			String spanBegin = "<span style='color:red;font-weight:bold;'>";
-			String spanEnd = "</span>";
-			buf.append("<br>" + spanBegin + "topicPartitions : " + spanEnd)
-			.append(topicPartitions)
-			.append("<br>" + spanBegin + "containerProperties : " + spanEnd)
-			.append(containerProperties)
-			.append("<br>" + spanBegin + "groupId : " + spanEnd)
-			.append(groupId)
-			.append("<br>" + spanBegin + "listenerId : " + spanEnd)
-			.append(listenerId)
-			.append("<br>" + spanBegin + "phase : " + spanEnd)
-			.append(phase)
-			.append("<br>" + spanBegin + "isAutoStartup : " + spanEnd)
-			.append(isAutoStartup)
-			.append("<br>" + spanBegin + "isContainerPaused : " + spanEnd)
-			.append(isContainerPaused)
-			.append("<br>" + spanBegin + "isPauseRequested : " + spanEnd)
-			.append(isPauseRequested)
-			.append("<br>" + spanBegin + "isRunning : " + spanEnd)
-			.append(isRunning)
-			.append("<br>" + spanBegin + "metrics : " + spanEnd)
-			.append(ConsumerUtil.prepareMetricStr(metrics))
-			.append("<br>------------------------------------------------------------------------------------------")
-			;
-		});
-		
-		return buf.toString();
+		String str = ConsumerUtil.prepareListenerContainerStr(list);
+		return str;
 	}
 
 	
 	/**
 	 * 查询消费者组列表
+	 * http://localhost:9201/consumer/listGroupId
 	 */
 	@RequestMapping("/listGroupId")
 	public String listGroupId() {
@@ -186,6 +153,7 @@ public class ConsumerController {
 	
 	/**
 	 * 查询消费者组的消费进度
+	 * http://localhost:9201/consumer/detailGroupId
 	 */
 	@RequestMapping("/detailGroupId")
 	public String detailGroupId(String groupId) {

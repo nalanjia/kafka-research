@@ -1,6 +1,7 @@
 package com.aebiz.util;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,13 +12,62 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
+import org.springframework.kafka.listener.ContainerProperties;
+import org.springframework.kafka.listener.MessageListenerContainer;
 
 public class ConsumerUtil {
 
 	/**
+	 * 展示监听器容器
+	 */
+	public static String prepareListenerContainerStr(Collection<MessageListenerContainer> list) {
+		StringBuffer buf = new StringBuffer();
+		buf.append("<br>" + OtherUtil.getNow() + "MessageListenerContainer总数量为[" + list.size() + "]");
+		
+		list.forEach(t -> {
+			Collection<TopicPartition> topicPartitions = t.getAssignedPartitions();
+			ContainerProperties containerProperties = t.getContainerProperties();
+			String groupId = t.getGroupId();
+			String listenerId = t.getListenerId();
+			int phase = t.getPhase();
+			boolean isAutoStartup = t.isAutoStartup();
+			boolean isContainerPaused = t.isContainerPaused();
+			boolean isPauseRequested = t.isPauseRequested();
+			boolean isRunning = t.isRunning();
+			Map<String, Map<MetricName, ? extends Metric>> metrics = t.metrics();
+			
+			String spanBegin = "<span style='color:red;font-weight:bold;'>";
+			String spanEnd = "</span>";
+			buf.append("<br>" + spanBegin + "topicPartitions : " + spanEnd)
+			.append(topicPartitions)
+			.append("<br>" + spanBegin + "containerProperties : " + spanEnd)
+			.append(containerProperties)
+			.append("<br>" + spanBegin + "groupId : " + spanEnd)
+			.append(groupId)
+			.append("<br>" + spanBegin + "listenerId : " + spanEnd)
+			.append(listenerId)
+			.append("<br>" + spanBegin + "phase : " + spanEnd)
+			.append(phase)
+			.append("<br>" + spanBegin + "isAutoStartup : " + spanEnd)
+			.append(isAutoStartup)
+			.append("<br>" + spanBegin + "isContainerPaused : " + spanEnd)
+			.append(isContainerPaused)
+			.append("<br>" + spanBegin + "isPauseRequested : " + spanEnd)
+			.append(isPauseRequested)
+			.append("<br>" + spanBegin + "isRunning : " + spanEnd)
+			.append(isRunning)
+			.append("<br>" + spanBegin + "metrics : " + spanEnd)
+			.append(ConsumerUtil.prepareMetricStr(metrics))
+			.append("<br>------------------------------------------------------------------------------------------")
+			;
+		});
+		return buf.toString();
+	}
+	
+	/**
 	 * 展示度量指标数据-按分组展示
 	 */
-	private static String parepareMetricStrComplex(Map<String, Map<MetricName, ? extends Metric>> metrics) {
+	private static String prepareMetricStrComplex(Map<String, Map<MetricName, ? extends Metric>> metrics) {
 		StringBuffer buf = new StringBuffer();
 		
 		metrics.forEach((k, v) -> {
@@ -74,7 +124,7 @@ public class ConsumerUtil {
 	/**
 	 * 展示度量指标数据-简单展示
 	 */
-	private static String parepareMetricStrSimple(Map<String, Map<MetricName, ? extends Metric>> metrics) {
+	private static String prepareMetricStrSimple(Map<String, Map<MetricName, ? extends Metric>> metrics) {
 		StringBuffer buf = new StringBuffer();
 		
 		metrics.forEach((k, v) -> {
@@ -96,8 +146,8 @@ public class ConsumerUtil {
 	 * 展示度量指标数据
 	 */
 	public static String prepareMetricStr(Map<String, Map<MetricName, ? extends Metric>> metrics) {
-//		String ret = parepareMetricStrSimple(metrics);
-		String ret = parepareMetricStrComplex(metrics);
+//		String ret = prepareMetricStrSimple(metrics);
+		String ret = prepareMetricStrComplex(metrics);
 		return ret;
 	}
 	
