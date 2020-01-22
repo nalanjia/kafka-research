@@ -1,6 +1,7 @@
 kafka官网
 http://kafka.apache.org/23/documentation.html
 http://kafka.apache.org/23/javadoc/index.html
+https://github.com/apache/kafka/tree/2.3
 
 JIRA提BUG的地方
 https://issues.apache.org/jira/projects/KAFKA/issues
@@ -9,20 +10,24 @@ spring kafka官网，文档，API，github
 https://spring.io/projects/spring-kafka#overview
 https://docs.spring.io/spring-kafka/docs/2.3.3.RELEASE/reference/html/
 https://docs.spring.io/spring-kafka/docs/2.3.3.RELEASE/api/
-https://github.com/spring-projects/spring-kafka
+https://github.com/spring-projects/spring-kafka/tree/2.3.x
 
 spring-integration-kafka，这个是干嘛的？？？待定
 https://github.com/spring-projects/spring-integration-kafka
 https://github.com/spring-projects/spring-integration-samples/tree/master/basic/kafka
 
 springboot kafka
-https://docs.spring.io/spring-boot/docs/2.2.1.RELEASE/reference/htmlsingle/#legal
+https://docs.spring.io/spring-boot/docs/2.2.1.RELEASE/reference/htmlsingle/#boot-features-kafka
+https://docs.spring.io/spring-boot/docs/2.2.1.RELEASE/reference/htmlsingle/#integration-properties
 
 spring boot集成kafka之spring-kafka深入探秘
 http://www.kailing.pub/article/index/arcid/243.html
 
 胡夕的博客
 https://www.cnblogs.com/huxi2b/
+
+聊聊spring对kafka的集成方式
+https://segmentfault.com/a/1190000011454052
 
 Spring-Kafka史上最强入门教程
 https://www.jianshu.com/c/0c9d83802b0c
