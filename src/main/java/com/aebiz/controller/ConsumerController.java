@@ -3,6 +3,7 @@ package com.aebiz.controller;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -17,13 +18,12 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaFuture;
-import org.apache.kafka.common.Metric;
-import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.record.TimestampType;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.kafka.listener.ContainerProperties;
+import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
+import org.springframework.kafka.listener.KafkaMessageListenerContainer;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -119,7 +119,17 @@ public class ConsumerController {
 		Collection<MessageListenerContainer> list = kafkaTemplateConfig.getKafkaListenerEndpointRegistry()
 			.getAllListenerContainers();
 		
-		String str = ConsumerUtil.prepareListenerContainerStr(list);
+//		String str = ConsumerUtil.prepareListenerContainerStr(list);
+		
+//		ConcurrentMessageListenerContainer
+		list.forEach(t -> {
+			ConcurrentMessageListenerContainer t2 = (ConcurrentMessageListenerContainer)t;
+			List<KafkaMessageListenerContainer> ls = t2.getContainers();
+			System.out.println(11);
+		});
+		
+		
+		String str = "123";
 		return str;
 	}
 

@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -44,7 +45,10 @@ public class KafkaResearchConfig {
 	 */
 	private AdminClient adminClient;
 	/**
-	 * 监听器生命周期
+	 * 监听器生命周期。
+	 * 监听器KafkaListener注册在kafkaListenerEndpointRegistry
+	 * 而不是IOC容器中注册为Bean
+	 * 所以管理KafkaListener是通过kafkaListenerEndpointRegistry来操作的
 	 */
 	private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
 	/**

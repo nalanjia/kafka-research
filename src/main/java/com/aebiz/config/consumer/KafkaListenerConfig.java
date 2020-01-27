@@ -12,8 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class KafkaListenerConfig {
 
-	//topicPattern：可配置，支持监听正则
-	//id：可配置，用于支持暂停、恢复
+	//topicPattern：可在配置文件配置，支持监听正则
+	//id：可在配置文件配置，用于支持暂停、恢复
 	//errorHandler：错误处理
 	@KafkaListener(
 			topicPattern = "${kafkalistener.topicpattern.1p1r:topic.1p.1r.*}"

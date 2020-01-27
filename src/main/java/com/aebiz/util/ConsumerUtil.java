@@ -25,6 +25,7 @@ public class ConsumerUtil {
 		buf.append("<br>" + OtherUtil.getNow() + "MessageListenerContainer总数量为[" + list.size() + "]");
 		
 		list.forEach(t -> {
+			//t是ConcurrentMessageListenerContainer
 			Collection<TopicPartition> topicPartitions = t.getAssignedPartitions();
 			ContainerProperties containerProperties = t.getContainerProperties();
 			String groupId = t.getGroupId();

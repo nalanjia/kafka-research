@@ -41,7 +41,7 @@ implements CommandLineRunner
 //        log.info("All received");
     }
 
-    @KafkaListener(topics = "topic_health")
+    @KafkaListener(topics = KaResearchConstant.TOPIC_HEALTH)
     public void listen(ConsumerRecord<?, ?> cr) throws Exception {
         log.info("消费消息 : " + cr.toString());
 //        latch.countDown();
