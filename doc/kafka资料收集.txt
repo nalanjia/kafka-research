@@ -20,17 +20,23 @@ springboot kafka
 https://docs.spring.io/spring-boot/docs/2.2.1.RELEASE/reference/htmlsingle/#boot-features-kafka
 https://docs.spring.io/spring-boot/docs/2.2.1.RELEASE/reference/htmlsingle/#integration-properties
 
-spring boot集成kafka之spring-kafka深入探秘
+spring boot集成kafka之spring-kafka深入探秘（Spring for Apache Kafka）
 http://www.kailing.pub/article/index/arcid/243.html
+聊聊spring对kafka的集成方式（比如Spring for Apache Kafka）
+https://segmentfault.com/a/1190000011454052
+Spring-Kafka史上最强入门教程
+https://www.jianshu.com/c/0c9d83802b0c
+springboot学习(十六)：了解springboot自动装配kafka原理
+https://blog.csdn.net/sinat_36553913/article/details/101106640
+springboot学习(十七)：了解spring - kafka配置工作原理
+https://blog.csdn.net/sinat_36553913/article/details/101910197
 
 胡夕的博客
 https://www.cnblogs.com/huxi2b/
 
-聊聊spring对kafka的集成方式
-https://segmentfault.com/a/1190000011454052
 
-Spring-Kafka史上最强入门教程
-https://www.jianshu.com/c/0c9d83802b0c
+
+
 
 消息中间件朱小厮，欢迎支持笔者新作：《深入理解Kafka:核心设计与实践原理》和《RabbitMQ实战指南》
 https://blog.csdn.net/u013256816/category_9268265.html

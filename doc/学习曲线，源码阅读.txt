@@ -78,6 +78,15 @@ ConsumerFactory 消费者工厂C
 3。将装配器自己的一些参数，装配给B
 总之一句话，就是将监听器容器工厂武装起来
 
+kafka初始化调用链
+KafkaAutoConfiguration ->
+KafkaAnnotationDrivenConfiguration ->
+@EnableKafka ->
+KafkaListenerConfigurationSelector ->
+KafkaBootstrapConfiguration ->
+KafkaListenerAnnotationBeanPostProcessor KafkaListenerEndpointRegistry ->
+KafkaListener
+
 
 
 

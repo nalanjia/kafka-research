@@ -48,4 +48,19 @@ public class NewTopicConfig {
 		return topic;
     }
 	
+	@Bean
+    public NewTopic initTopic2p1r() {
+		//分区
+		int numPartitions = 2;
+		//副本
+		short replicationFactor = 1;
+		
+		NewTopic topic = TopicBuilder.name(KaResearchConstant.TOPIC_2P_1R)
+					.partitions(numPartitions)
+					.replicas(replicationFactor)
+					.compact()
+					.build();
+		return topic;
+    }	
+	
 }

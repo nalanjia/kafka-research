@@ -119,17 +119,7 @@ public class ConsumerController {
 		Collection<MessageListenerContainer> list = kafkaTemplateConfig.getKafkaListenerEndpointRegistry()
 			.getAllListenerContainers();
 		
-//		String str = ConsumerUtil.prepareListenerContainerStr(list);
-		
-//		ConcurrentMessageListenerContainer
-		list.forEach(t -> {
-			ConcurrentMessageListenerContainer t2 = (ConcurrentMessageListenerContainer)t;
-			List<KafkaMessageListenerContainer> ls = t2.getContainers();
-			System.out.println(11);
-		});
-		
-		
-		String str = "123";
+		String str = ConsumerUtil.prepareListenerContainerStr(list);
 		return str;
 	}
 
@@ -163,7 +153,7 @@ public class ConsumerController {
 	
 	/**
 	 * 查询消费者组的消费进度
-	 * http://localhost:9201/consumer/detailGroupId
+	 * http://localhost:9201/consumer/detailGroupId?groupId=mygroup
 	 */
 	@RequestMapping("/detailGroupId")
 	public String detailGroupId(String groupId) {
