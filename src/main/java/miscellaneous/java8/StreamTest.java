@@ -16,11 +16,14 @@ public class StreamTest {
 		//List变List
 //		list2list();
 		
+		//List过滤
+		list2listFilter();
+		
 		//Map更优雅的迭代方式：forEach
 //		mapForeach();
 		
 		//Map按key排序
-		mapSortByKey();
+//		mapSortByKey();
 		
 		
 		
@@ -76,7 +79,22 @@ public class StreamTest {
 		
 		List<String> list = topics.stream()
 		.map(Topic::getName)
-		.collect(Collectors.toList());
+		.distinct().collect(Collectors.toList());
+		System.out.println(list);
+	}
+	public static void list2listFilter() {
+		List<Topic> topics = new ArrayList<Topic>();
+		
+		Topic t1 = new Topic("name2");
+		Topic t2 = new Topic("name1");
+		Topic t3 = new Topic("name2");
+		topics.add(t1);
+		topics.add(t2);
+		topics.add(t3);
+		
+		List<Topic> list = topics.stream()
+				.filter(t -> !t.getName().equals("name1"))
+				.collect(Collectors.toList());
 		System.out.println(list);
 	}
 	
