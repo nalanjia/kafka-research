@@ -13,6 +13,9 @@ https://www.cnblogs.com/yiyi17/p/9409249.html
 <link rel="stylesheet"
 	href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
 <style type="text/css">
+[v-cloak]{
+            display: none;
+        }
 .el-link {
 	font-size: 30px;
 }
@@ -20,13 +23,20 @@ https://www.cnblogs.com/yiyi17/p/9409249.html
 </style>
 </head>
 <body>
-<div id="app">
-	<el-divider content-position="left">生产者相关</el-divider>
+<div id="app" v-cloak>
+	<el-divider content-position="left">kafka生产者</el-divider>
 	<div>
 		<el-link
 			icon="el-icon-magic-stick" 
 			href="/producer/addOneMsg.html"
 			target="_blank">向指定的topic生产1条消息</el-link>
+	</div>
+	<el-divider content-position="left">kafka生产者和消费者</el-divider>
+	<div>
+		<el-link
+			icon="el-icon-magic-stick" 
+			href="/both/both.html"
+			target="_blank">向指定的topic自定义频率生产消息、消费消息</el-link>
 	</div>
 	
 <!-- 	<el-divider content-position="left">消费者相关</el-divider> -->
@@ -34,7 +44,7 @@ https://www.cnblogs.com/yiyi17/p/9409249.html
 	
 <!-- 	</div> -->
 	
-	<el-divider content-position="left">常用文档</el-divider>
+	<el-divider content-position="left">kafka常用文档</el-divider>
 
 	<!-- Spring Boot -->
 	<div>
@@ -129,16 +139,31 @@ https://www.cnblogs.com/yiyi17/p/9409249.html
 	</div>		
 	
 	<!-- 页面技术 -->
+	<el-divider content-position="left">前端常用文档</el-divider>
 	<div>
 		<el-tooltip placement="top" effect="light">
-			<div slot="content">Element<br/>一套为开发者、设计师和产品经理准备的<br/>基于Vue 2.0的桌面端组件库</div>
+			<div slot="content">Element<br/>一套为开发者、设计师<br/>和产品经理准备的<br/>基于Vue 2.0的桌面端组件库</div>
 			<el-link
 				icon="el-icon-question" 
-				href="https://element.eleme.cn/#/zh-CN/component/installation"
+				href="https://element.eleme.cn"
 				target="_blank">Vue Element</el-link>
 		</el-tooltip>
 		<el-divider direction="vertical"></el-divider>
 	</div>
+	
+	<!-- kafka监控 -->
+	<el-divider content-position="left">kafka监控</el-divider>
+	<div>
+		<el-tooltip placement="top" effect="light">
+			<div slot="content">Kafka Eagle<br/>A EASY AND HIGH-PERFORMANCE MONITORING SYSTEM</div>
+			<el-link
+				icon="el-icon-question" 
+				href="https://www.kafka-eagle.org/"
+				target="_blank">Kafka Eagle</el-link>
+		</el-tooltip>
+		<el-divider direction="vertical"></el-divider>
+	</div>
+	
 	
 </div>
 </body>

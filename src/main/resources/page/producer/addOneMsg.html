@@ -6,6 +6,9 @@
 <link rel="stylesheet"
 	href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
 <style type="text/css">
+[v-cloak]{
+            display: none;
+        }
 .addOneMsg {
 	width: 500px;
 }
@@ -23,7 +26,7 @@
 </style>
 </head>
 <body>
-<div id="app">
+<div id="app" v-cloak>
 	<!-- 
 	el-form的3个属性
 	:model 该属性必须有，其值是JS变量，也必须存在
