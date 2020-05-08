@@ -1,0 +1,18 @@
+如何用eclipse，clone git的项目？
+1.打开eclipse，打开eclipse自带的Git Repositories
+2.点击Clone a Git repository
+Location URL填写：https://github.com/nalanjia/kafka-research
+Connection Port填写：443
+
+这个Port为什么填写443呢？
+因为你用浏览器打开URL，F12查看，能看到请求的是443端口
+Remote Address: 13.250.177.223:443
+
+Authentication User填写：自己填吧
+Authentication Password填写：自己填吧
+3.点击Next，再点击Next
+4.Destination Directory：自己填吧，本地硬盘的一个位置
+5.点击Finish。能看到从github.com:443拉取项目
+6.项目已经在本地硬盘了，用eclipse导入之
+
+
