@@ -2,6 +2,9 @@ package com.aebiz;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ApplicationContext;
+
+import com.aebiz.config.SpringBeanTool;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -10,7 +13,9 @@ import lombok.extern.slf4j.Slf4j;
 public class Main {
 
 	public static void main(String[] args) {
-		SpringApplication.run(Main.class, args);
-		log.debug("AppServer服务端启动了");
+		ApplicationContext context = SpringApplication.run(Main.class, args);
+		//填充上下文
+		SpringBeanTool.setApplicationContext(context);
+		log.debug("kafka-research started !");
 	}
 }
