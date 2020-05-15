@@ -14,6 +14,11 @@ public class ResearchTopicInfoDTO {
 	private long logSize;
 	
 	/**
+	 * 返回时间
+	 */
+	private String returnTime;
+	
+	/**
 	 * 分区列表
 	 */
 	private List<ResearchPartitionInfoDTO> partitionList = 

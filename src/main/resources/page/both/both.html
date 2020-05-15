@@ -1,1 +1,241 @@
-123
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!-- import CSS -->
+<link rel="stylesheet" href=../common/css/index.css>
+<style type="text/css">
+[v-cloak]{
+            display: none;
+        }
+.topicDiv {
+	position: relative;
+}
+.el-card {
+	width: 150px;
+	float: left;
+	margin-right: 5px;
+}
+.el-card__header {
+	padding: 5px 8px;
+	background-color: #409eff;
+}
+.el-card__body {
+	padding: 15px 18px;
+	background-color: #fafafa;
+}
+</style>
+</head>
+<body>
+<div id="app" v-cloak>
+	<div>
+	  	<el-select v-model="topicName" placeholder="请选择主题"
+	  		@change="changeTopicName"
+	  	>
+			<el-option
+				v-for="item in topicList"
+				:key="item.value"
+				:label="item.label"
+				:value="item.value">
+			</el-option>
+		</el-select>
+	</div>
+	
+	<div>
+		<el-switch
+			v-model="switchTopic"
+			inactive-text="轮询开关"
+			@change="changeSwitchTopic"
+			>
+		</el-switch>
+	</div>
+	
+	<div class="topicDiv">
+		<el-card class="box-card">
+			<div slot="header" class="clearfix">
+				<span>返回时间</span>
+			</div>
+			<div class="text item">
+				{{resTopicEle.returnTime}}
+			</div>
+		</el-card>
+		
+		<el-card class="box-card">
+			<div slot="header" class="clearfix">
+				<span>消息数量</span>
+			</div>
+			<div class="text item">
+				{{resTopicEle.logSize}}
+			</div>
+		</el-card>
+	</div>
+	
+</div>
+</body>
+<!-- import Vue before Element -->
+<script src="../common/js/vue.js"></script>
+<!-- import JavaScript -->
+<script src="../common/js/index.js"></script>
+<!-- import ajax -->
+<script src="../common/js/axios.min.js"></script>
+<script>
+var vueApp = new Vue({
+	el : '#app',
+	data : function() {
+		return {
+			//下拉框勾选中的主题名称
+			topicName : '',
+			//下拉框，刚进本页面初始化之
+      		topicList : [],
+      		
+      		//勾选中下拉框主题后，从后台查到的返回
+      		resTopicEle : {},
+      		//勾选中下拉框主题后，记录主题名称
+      		refreshTopicFlag : '',
+      		
+      		//轮询开关
+      		switchTopic : true,
+      		
+		} //return end
+	}, //data end
+     
+	mounted : function() {
+		this.getTopicList();
+	},
+     
+	methods : {
+		//阻断性提示，用户看完，自己关闭
+		showAlert(title, msg) {
+			this.$alert(msg, title, {
+		          confirmButtonText: '确定'
+		        });
+		},
+		
+		//顶部的提示，属于不顺利的情况下，用户看看就好
+		showTop(msg, position) {
+			this.$message({
+				dangerouslyUseHTMLString: true,
+				type: 'info',
+				message: '<strong>' + position + '</strong><br>' + msg
+			});
+		},
+		
+		//右侧提示，属于顺利情况下，业务提示
+		showRight(title, msg, mstime) {
+			var str = "<span style='float:left;text-align:left;'>" + msg + "</span>";
+			msg = str;
+			
+			var that = this;
+			//避免重叠的写法setTimeout
+			window.setTimeout(() => {
+				that.$notify.success({
+					dangerouslyUseHTMLString: true,
+		          	title: title,
+		          	message: msg,
+		          	showClose: false,
+		          	duration: mstime
+		        });
+			}, 0)
+	    },
+		getTopicList : function() {
+			var that = this;
+			var url = '/topic/getTopicList';
+
+			axios({
+				method: 'post',
+				url: url
+  			  	})
+			.then(function (res) {
+				for (i in res.data) {
+					let ele = {
+						"label" : res.data[i],
+						"value" : res.data[i]
+					}
+					that.topicList.push(ele);
+				}
+			})
+			.catch(function (error) {
+				that.showTop(error, '查询主题列表getTopicList');
+			});
+		},
+   	  
+		clearLastChange : function(topicName) {
+			//第一次用
+			if(this.refreshTopicFlag == '') {
+				this.refreshTopicFlag = topicName;
+				return;
+			}
+			//下拉框没有变化
+			if(this.refreshTopicFlag == topicName) {
+				return;
+			}
+			//下拉框变了
+			if(this.refreshTopicFlag != topicName) {
+				//停止旧的轮询
+				window.clearTimeout(this.refreshTopicFlag);
+				//记录新的
+				this.refreshTopicFlag = topicName;
+			}
+		},
+		
+		//勾选下拉框之后
+		changeTopicName : function(topicName) {
+			//停止旧的轮询，记录新的
+			this.clearLastChange(topicName);
+			
+			var that = this;
+			var url = '/topic/getTopicDetail';
+
+			let param = new URLSearchParams();
+			param.append('topicName', topicName);
+			
+			axios({
+				method: 'post',
+				url: url,
+				data: param
+  			  	})
+			.then(function (res) {
+				that.resTopicEle = res.data;
+				//继续调用
+				that.changeTopicNamePeriodic(topicName);
+			})
+			.catch(function (error) {
+				that.showTop(error, '查询主题详情changeTopicName');
+			});
+		},
+		
+		changeTopicNamePeriodic(topicName) {
+	    	var that = this;
+	    	
+	    	//switch开关打开，才有下一次
+	    	if(that.switchTopic == true) {
+				that.refreshTopicFlag = window.setTimeout(() => {
+					that.changeTopicName(topicName);
+				}, 2000)
+	    	}
+	    },
+	    
+	    //switch开关改变了
+	    changeSwitchTopic(openOrNot) {
+	    	var that = this;
+	    	//下拉框从未勾选过。不论开关如何都无妨
+	    	if(this.refreshTopicFlag == '') {
+	    		return;
+	    	}
+	    	//开关关闭，这里什么都不做
+	    	//changeTopicNamePeriodic那边会利用switchTopic为false，阻止查询后台
+	    	if(openOrNot == false) {
+	    		return;
+	    	}
+	    	//开关打开
+	    	if(openOrNot == true) {
+	    		that.changeTopicName(that.refreshTopicFlag);
+	    	}
+	    },
+		
+		
+	} //methods end
+}) //new Vue end
+
+</script>
+</html>

@@ -18,6 +18,7 @@ public class TopicUtil {
 
 	public static ResearchTopicInfoDTO getTopicDetail(String topicName) {
 		ResearchTopicInfoDTO tInfo = new ResearchTopicInfoDTO();
+		tInfo.setReturnTime(DateUtil.getNowTime_EN());
 		
 		KafkaResearchConfig config = SpringBeanTool.getBean(KafkaResearchConfig.class);
 		KafkaConsumer consumer = config.getKafkaConsumer();

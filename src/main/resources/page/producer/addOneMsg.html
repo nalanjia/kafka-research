@@ -109,13 +109,13 @@ var vueApp = new Vue({
 	}, //data end
      
 	mounted : function() {
-		this.getTopicListJson();
+		this.getTopicList();
 	},
      
 	methods : {
-		getTopicListJson : function() {
+		getTopicList : function() {
 			var that = this;
-			var url = '/topic/getTopicListJson';
+			var url = '/topic/getTopicList';
 
 			axios({
 				method: 'post',
