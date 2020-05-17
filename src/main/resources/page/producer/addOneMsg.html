@@ -56,7 +56,7 @@
 				</el-option>
 			</el-select>
 		</el-form-item>
-		<el-form-item label="消息KEY" prop="keyName">
+		<el-form-item label="消息KEY">
 			<el-input suffix-icon="el-icon-search" maxlength="20" show-word-limit
 				v-model="pruducer.addOneMsg.keyName"> </el-input>
 		</el-form-item>
@@ -99,9 +99,6 @@ var vueApp = new Vue({
       		rules : {
 				topicName : [
 					{ required : true, message : '请选择主题', trigger : 'blur' },
-				],
-      			keyName : [
-					{ required: true, message: '请选择KEY消息', trigger: 'blur' },
 				],
       		},
       		

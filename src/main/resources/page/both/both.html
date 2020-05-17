@@ -8,9 +8,6 @@
 [v-cloak]{
             display: none;
         }
-.topicDiv {
-	position: relative;
-}
 .el-card {
 	width: 150px;
 	float: left;
@@ -24,12 +21,15 @@
 	padding: 15px 18px;
 	background-color: #fafafa;
 }
+.clearfloat {
+	clear:both;height:0;font-size:1px;line-height:0px;
+}
 </style>
 </head>
 <body>
 <div id="app" v-cloak>
 	<div>
-	  	<el-select v-model="topicName" placeholder="请选择主题"
+	  	<el-select v-model="selectedTopicName" placeholder="请选择主题"
 	  		@change="changeTopicName"
 	  	>
 			<el-option
@@ -50,7 +50,7 @@
 		</el-switch>
 	</div>
 	
-	<div class="topicDiv">
+	<div>
 		<el-card class="box-card">
 			<div slot="header" class="clearfix">
 				<span>返回时间</span>
@@ -68,7 +68,28 @@
 				{{resTopicEle.logSize}}
 			</div>
 		</el-card>
+		<div class="clearfloat"></div>
 	</div>
+	
+	<div>
+		<el-switch
+			v-model="switchProducer"
+			inactive-text="生产开关"
+			@change="changeSwitchProducer"
+			>
+		</el-switch>
+		<el-select v-model="produceNum" placeholder="每秒生产数量"
+	  	>
+			<el-option
+				v-for="item in produceNumList"
+				:key="item.value"
+				:label="item.label"
+				:value="item.value">
+			</el-option>
+		</el-select> 
+		
+	</div>
+	
 	
 </div>
 </body>
@@ -83,19 +104,42 @@ var vueApp = new Vue({
 	el : '#app',
 	data : function() {
 		return {
-			//下拉框勾选中的主题名称
-			topicName : '',
+			//下拉框勾选中的主题名称，当前的
+			selectedTopicName : '',
 			//下拉框，刚进本页面初始化之
       		topicList : [],
       		
+      		//旧的勾选
+      		oldTopicName : '',
       		//勾选中下拉框主题后，从后台查到的返回
       		resTopicEle : {},
-      		//勾选中下拉框主题后，记录主题名称
-      		refreshTopicFlag : '',
-      		
-      		//轮询开关
+      		//轮询ID
+      		topicSetTimeoutId : '',
+      		//轮询主题开关
       		switchTopic : true,
       		
+      		//生产开关
+      		switchProducer : false,
+      		//每秒生产数量
+      		produceNum : '',
+      		
+      		produceNumList: [{
+                value: '1',
+                label: '1'
+              }, {
+                value: '10',
+                label: '10'
+              }, {
+                value: '100',
+                label: '100'
+              }, {
+                value: '300',
+                label: '300'
+              }, {
+                value: '500',
+                label: '500'
+             }],
+             
 		} //return end
 	}, //data end
      
@@ -159,35 +203,16 @@ var vueApp = new Vue({
 			});
 		},
    	  
-		clearLastChange : function(topicName) {
-			//第一次用
-			if(this.refreshTopicFlag == '') {
-				this.refreshTopicFlag = topicName;
-				return;
-			}
-			//下拉框没有变化
-			if(this.refreshTopicFlag == topicName) {
-				return;
-			}
-			//下拉框变了
-			if(this.refreshTopicFlag != topicName) {
-				//停止旧的轮询
-				window.clearTimeout(this.refreshTopicFlag);
-				//记录新的
-				this.refreshTopicFlag = topicName;
-			}
-		},
-		
-		//勾选下拉框之后
-		changeTopicName : function(topicName) {
+		//勾选下拉框之后，最新的值
+		changeTopicName : function(newTopicName) {
 			//停止旧的轮询，记录新的
-			this.clearLastChange(topicName);
+			this.clearLastChange(newTopicName);
 			
 			var that = this;
 			var url = '/topic/getTopicDetail';
 
 			let param = new URLSearchParams();
-			param.append('topicName', topicName);
+			param.append('topicName', newTopicName);
 			
 			axios({
 				method: 'post',
@@ -197,42 +222,120 @@ var vueApp = new Vue({
 			.then(function (res) {
 				that.resTopicEle = res.data;
 				//继续调用
-				that.changeTopicNamePeriodic(topicName);
+				that.changeTopicNamePeriodic(newTopicName);
 			})
 			.catch(function (error) {
 				that.showTop(error, '查询主题详情changeTopicName');
 			});
 		},
 		
-		changeTopicNamePeriodic(topicName) {
+		clearLastChange : function(newTopicName) {
+			//第一次用，记录新的
+			if(this.oldTopicName == '') {
+				this.oldTopicName = newTopicName;
+				return;
+			}
+			//下拉框没有变化
+			if(this.oldTopicName == newTopicName) {
+				return;
+			}
+			//下拉框变了
+			if(this.oldTopicName != newTopicName) {
+				//停止旧的轮询
+				window.clearTimeout(this.topicSetTimeoutId);
+				//记录新的
+				this.oldTopicName = newTopicName;
+			}
+		},
+		
+		changeTopicNamePeriodic(newTopicName) {
 	    	var that = this;
 	    	
 	    	//switch开关打开，才有下一次
 	    	if(that.switchTopic == true) {
-				that.refreshTopicFlag = window.setTimeout(() => {
-					that.changeTopicName(topicName);
-				}, 2000)
+				that.topicSetTimeoutId = window.setTimeout(() => {
+					that.changeTopicName(newTopicName);
+				}, 2000);
 	    	}
 	    },
 	    
-	    //switch开关改变了
+	    //轮询主题开关改变了
 	    changeSwitchTopic(openOrNot) {
 	    	var that = this;
 	    	//下拉框从未勾选过。不论开关如何都无妨
-	    	if(this.refreshTopicFlag == '') {
+	    	if(this.selectedTopicName == '') {
 	    		return;
 	    	}
-	    	//开关关闭，这里什么都不做
-	    	//changeTopicNamePeriodic那边会利用switchTopic为false，阻止查询后台
+	    	//开关关闭，会影响changeTopicNamePeriodic
 	    	if(openOrNot == false) {
 	    		return;
 	    	}
 	    	//开关打开
 	    	if(openOrNot == true) {
-	    		that.changeTopicName(that.refreshTopicFlag);
+	    		that.changeTopicName(that.selectedTopicName);
 	    	}
 	    },
+	    
+	    //生产开关改变了
+	    changeSwitchProducer(openOrNot) {
+	    	var that = this;
+	    	
+	    	if(that.selectedTopicName == '') {
+	    		that.showTop("请选择主题", '警告！');
+	    		window.setTimeout(() => {
+	    			that.switchProducer = false;
+				}, 500);
+				return;
+	    	}
+	    	
+	    	if(that.produceNum == '') {
+	    		that.showTop("请选择每秒生产数量", '警告！');
+	    		window.setTimeout(() => {
+	    			that.switchProducer = false;
+				}, 500);
+				return;
+	    	}
+	    	//开了，去调用后台
+	    	if(openOrNot == true) {
+	    		that.realProduce();
+	    	}
+	    	//关了，that.switchProducer会变为false
+	    	//导致下方realProducePeriodic会阻断
+	    },
+	    
+	  	//打开生产开关之后
+		realProduce : function() {
+			var that = this;
+			var url = '/producer/addNMsgs';
+
+			let param = new URLSearchParams();
+			param.append('topicName', that.selectedTopicName);
+			param.append('num', that.produceNum);
+			
+			axios({
+				method: 'post',
+				url: url,
+				data: param
+  			  	})
+			.then(function (res) {
+				//继续调用
+				that.realProducePeriodic();
+			})
+			.catch(function (error) {
+				that.showTop(error, '查询主题详情changeTopicName');
+			});
+		},
 		
+		realProducePeriodic() {
+	    	var that = this;
+	    	
+	    	//switch开关打开，才有下一次
+	    	if(that.switchProducer == true) {
+				window.setTimeout(() => {
+					that.realProduce();
+				}, 1000)
+	    	}
+	    },
 		
 	} //methods end
 }) //new Vue end
