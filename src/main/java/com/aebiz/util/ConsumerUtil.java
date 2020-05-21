@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
@@ -15,8 +17,11 @@ import org.apache.kafka.common.TopicPartition;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.MessageListenerContainer;
 
-public class ConsumerUtil {
+import com.aebiz.config.KafkaResearchConfig;
+import com.aebiz.config.SpringBeanTool;
 
+public class ConsumerUtil {
+	
 	/**
 	 * 展示监听器容器
 	 */

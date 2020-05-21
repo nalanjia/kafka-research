@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.aebiz.config.KafkaResearchConfig;
 import com.aebiz.util.GeneDataUtil;
+import com.aebiz.util.KaResearchConstant;
 import com.aebiz.util.OtherUtil;
 
 import lombok.extern.slf4j.Slf4j;
@@ -99,7 +100,7 @@ public class ProducerController {
 		for(int i = 0; i < num; i++) {
 			this.addOneMsg(topicName, null, null);
 		}
-		return "SUCCESS";
+		return KaResearchConstant.RES_SUCCESS;
 	}
 	
 

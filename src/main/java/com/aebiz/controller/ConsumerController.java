@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aebiz.config.KafkaResearchConfig;
+import com.aebiz.util.ConsumerGroupUtil;
 import com.aebiz.util.ConsumerUtil;
 import com.aebiz.util.DateUtil;
 import com.aebiz.util.OtherUtil;
@@ -156,7 +157,7 @@ public class ConsumerController {
 	 * http://localhost:9201/consumer/detailGroupId?groupId=mygroup
 	 */
 	@RequestMapping("/detailGroupId")
-	public String detailGroupId(String groupId) {
+	public String detailGroupId(@RequestParam("groupId") String groupId) {
 		if(StringUtils.isBlank(groupId)) {
 			return "groupId为空，请输入";
 		}
@@ -193,7 +194,10 @@ public class ConsumerController {
 	 * http://localhost:9201/consumer/seekOffset?topic=topic_1p_1r&partition=0&offset=21&length=1
 	 */
 	@RequestMapping("/seekOffset")
-	public String seekOffset(String topic, int partition, long offset, int length) {
+	public String seekOffset(@RequestParam("topic") String topic, 
+			@RequestParam("partition") int partition,
+			@RequestParam("offset") long offset,
+			@RequestParam("length") int length) {
 		TopicPartition tp = new TopicPartition(topic, partition);
 		
 		KafkaConsumer consumer = kafkaTemplateConfig.getKafkaConsumer();
@@ -240,5 +244,28 @@ public class ConsumerController {
 		
 		return buf.toString();
 	}
+	
+	/**
+	 * 删除消费者组
+	 * http://localhost:9201/consumer/deleteConsumerGroup?groupId=mygroup
+	 */
+	@RequestMapping("/deleteConsumerGroup")
+	public String deleteConsumerGroup(@RequestParam("groupId") String groupId) {
+		String res = ConsumerGroupUtil.deleteConsumerGroup(groupId);
+		return res;
+	}
+	
+	/**
+	 * 新建消费者组
+	 * http://localhost:9201/consumer/createConsumerGroup?topicName=topic_2p_1r
+	 */
+	@RequestMapping("/createConsumerGroup")
+	public String createConsumerGroup(@RequestParam("topicName") String topicName,
+			@RequestParam("num") int num) {
+		String res = ConsumerGroupUtil.createConsumerGroup(topicName, num);
+		return res;
+	}
+	
+	
 	
 }

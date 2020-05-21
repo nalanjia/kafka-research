@@ -16,4 +16,10 @@ public class KaResearchConstant {
 	public static final String TOPIC_2P_1R = "topic_2p_1r";
 	
 	
+	/**
+	 * 返回给页面
+	 */
+	public static final String RES_SUCCESS = "SUCCESS";
+	public static final String RES_FAIL = "FAIL";
+	
 }
