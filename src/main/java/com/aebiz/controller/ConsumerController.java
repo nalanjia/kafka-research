@@ -257,7 +257,7 @@ public class ConsumerController {
 	
 	/**
 	 * 新建消费者组
-	 * http://localhost:9201/consumer/createConsumerGroup?topicName=topic_2p_1r
+	 * http://localhost:9201/consumer/createConsumerGroup?topicName=topic_2p_1r&num=2
 	 */
 	@RequestMapping("/createConsumerGroup")
 	public String createConsumerGroup(@RequestParam("topicName") String topicName,

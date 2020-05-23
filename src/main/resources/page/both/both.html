@@ -90,7 +90,24 @@
 		
 	</div>
 	
-	
+	<div>
+		<el-switch
+			v-model="switchConsumer"
+			inactive-text="消费开关"
+			@change="changeSwitchConsumer"
+			>
+		</el-switch>
+		<el-select v-model="consumeNum" placeholder="每秒消费数量"
+	  	>
+			<el-option
+				v-for="item in consumeNumList"
+				:key="item.value"
+				:label="item.label"
+				:value="item.value">
+			</el-option>
+		</el-select> 
+		
+	</div>
 </div>
 </body>
 <!-- import Vue before Element -->
@@ -139,6 +156,31 @@ var vueApp = new Vue({
                 value: '500',
                 label: '500'
              }],
+             
+           	//消费开关
+       		switchConsumer : false,
+       		//每秒消费数量
+       		consumeNum : '',
+       		consumeNumList: [{
+                value: '1',
+                label: '1'
+              }, {
+                value: '10',
+                label: '10'
+              }, {
+                value: '100',
+                label: '100'
+              }, {
+                value: '300',
+                label: '300'
+              }, {
+                value: '500',
+                label: '500'
+            }],
+            //消费者组ID
+			currentGroupId : '', 
+       		
+       		
              
 		} //return end
 	}, //data end
@@ -322,7 +364,7 @@ var vueApp = new Vue({
 				that.realProducePeriodic();
 			})
 			.catch(function (error) {
-				that.showTop(error, '查询主题详情changeTopicName');
+				that.showTop(error, '生产消息realProduce');
 			});
 		},
 		
@@ -337,6 +379,77 @@ var vueApp = new Vue({
 	    	}
 	    },
 		
+		//消费开关改变了
+	    changeSwitchConsumer(openOrNot) {
+	    	var that = this;
+	    	
+	    	if(that.selectedTopicName == '') {
+	    		that.showTop("请选择主题", '警告！');
+	    		window.setTimeout(() => {
+	    			that.switchConsumer = false;
+				}, 500);
+				return;
+	    	}
+	    	
+	    	if(that.consumeNum == '') {
+	    		that.showTop("请选择每秒消费数量", '警告！');
+	    		window.setTimeout(() => {
+	    			that.switchConsumer = false;
+				}, 500);
+				return;
+	    	}
+	    	//开了，去调用后台，新建消费者组
+	    	if(openOrNot == true) {
+	    		that.realConsume();
+	    	}
+			//关了，去调用后台，销毁消费者组
+			if(openOrNot == false) {
+				that.realDestoryConsume();
+			}
+	    },
+	    
+	    realConsume : function() {
+			var that = this;
+			var url = '/consumer/createConsumerGroup';
+
+			let param = new URLSearchParams();
+			param.append('topicName', that.selectedTopicName);
+			param.append('num', that.consumeNum);
+			
+			axios({
+				method: 'post',
+				url: url,
+				data: param
+  			  	})
+			.then(function (res) {
+				that.currentGroupId = res.data;
+			})
+			.catch(function (error) {
+				that.showTop(error, '新建消费者组realConsume');
+			});
+		},
+	    
+		realDestoryConsume : function() {
+			var that = this;
+			var url = '/consumer/deleteConsumerGroup';
+
+			let param = new URLSearchParams();
+			param.append('groupId', that.currentGroupId);
+			
+			axios({
+				method: 'post',
+				url: url,
+				data: param
+  			  	})
+			.then(function (res) {
+				
+			})
+			.catch(function (error) {
+				that.showTop(error, '销毁消费者组realDestoryConsume');
+			});
+		},		
+		
+	    
 	} //methods end
 }) //new Vue end
 

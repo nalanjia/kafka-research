@@ -94,7 +94,8 @@ public class ConsumerGroupUtil {
 			Map<String, Object> configs = config.getKafkaProperties().buildConsumerProperties();
 			//覆盖application.properties的属性
 			configs.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-			configs.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10); //poll数量
+			//max.poll.interval.ms的时间要充足，以便有足够的时间来处理每一波儿消息
+			configs.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10); //poll一波儿得到的消息数量
 			configs.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, true); //自动提交
 			configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); //从头儿消费
 			
