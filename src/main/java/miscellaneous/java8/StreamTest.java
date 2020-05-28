@@ -1,6 +1,7 @@
 package miscellaneous.java8;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,8 +17,11 @@ public class StreamTest {
 		//List变List
 //		list2list();
 		
+		//List排序
+		listSort();
+		
 		//List过滤
-		list2listFilter();
+//		list2listFilter();
 		
 		//Map更优雅的迭代方式：forEach
 //		mapForeach();
@@ -62,6 +66,29 @@ public class StreamTest {
 		infoMap.forEach((key, value) -> {
 		    System.out.println(key + "：" + value);
 		});
+	}
+	
+	public static void listSort() {
+		List<Topic> topics = new ArrayList<Topic>();
+		
+		Topic t1 = new Topic("name2", 10);
+		Topic t4 = new Topic("name2", 2);
+		Topic t2 = new Topic("name1");
+		Topic t3 = new Topic("name7");
+		topics.add(t1);
+		topics.add(t2);
+		topics.add(t3);
+		topics.add(t4);
+		
+		//reverseOrder表示降序
+		List<Topic> list = topics.stream()
+		.sorted(Comparator.comparing(Topic::getName,Comparator.reverseOrder()).thenComparing(Topic::getAge, Comparator.reverseOrder()))
+		.collect(Collectors.toList());
+		
+		list.forEach(t -> {
+			System.out.println(t.getName() + " " + t.getAge());
+		});
+		
 	}
 	
 	/**
@@ -128,9 +155,14 @@ public class StreamTest {
 	
 	static class Topic {
 		private String name;
+		private int age;
 
 		public Topic(String name) {
 			this.name = name;
+		}
+		public Topic(String name, int age) {
+			this.name = name;
+			this.age = age;
 		}
 
 		public String getName() {
@@ -141,6 +173,12 @@ public class StreamTest {
 			this.name = name;
 		}
 
+		public int getAge() {
+			return age;
+		}
+		public void setAge(int age) {
+			this.age = age;
+		}
 		@Override
 		public String toString() {
 			return "Topic对象" + name;

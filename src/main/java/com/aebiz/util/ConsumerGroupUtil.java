@@ -1,22 +1,30 @@
 package com.aebiz.util;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.DeleteConsumerGroupsResult;
+import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsResult;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaFuture;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 
 import com.aebiz.config.KafkaResearchConfig;
 import com.aebiz.config.SpringBeanTool;
+import com.aebiz.vo.ResearchPartitionInfoDTO;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,8 +40,9 @@ public class ConsumerGroupUtil {
 		String uuid = GeneDataUtil.geneUuid();
 		String now = DateUtil.getNowDate_EN().replace("-", "");
 		String groupId = now + "-" + uuid;
+		String clientId = groupId;
 		
-		newConsumerGroupThread thread = new newConsumerGroupThread(groupId, topicName, num);
+		newConsumerGroupThread thread = new newConsumerGroupThread(groupId, clientId, topicName, num);
 		thread.start();
 		return groupId;
 	}
@@ -51,38 +60,92 @@ public class ConsumerGroupUtil {
 			mapConsumerGroup.remove(groupId);
 		}
 		
-		//删除远程kafka服务器的消费者组
+		int length = MAX_POLL_RECORDS_NUM * 2;
+		for(int i = 0; i < length; i++) {
+			//删除远程kafka服务器的消费者组
+			KafkaResearchConfig config = SpringBeanTool.getBean(KafkaResearchConfig.class);
+			AdminClient adminClient = config.getAdminClient();
+			
+			DeleteConsumerGroupsResult res = adminClient.deleteConsumerGroups(Collections.singletonList(groupId));
+			KafkaFuture<Void> future = res.all();
+			try {
+				Void v = future.get(5, TimeUnit.SECONDS);
+				System.out.println("尝试关闭消费者组第[" + (i+1) + "/" + length + "]次，成功！");
+				return KaResearchConstant.RES_SUCCESS;
+			} catch(Exception e) {
+				System.out.println("尝试关闭消费者组第[" + (i+1) + "/" + length + "]次，失败！报错为" + e.getMessage());
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e1) {
+					e1.printStackTrace();
+				}
+			}
+		}
+		return KaResearchConstant.RES_SUCCESS;
+	}
+	
+	/**
+	 * 查询消费者组
+	 */
+	public static List<ResearchPartitionInfoDTO> getConsumerGroup(String groupId) {
+		List<ResearchPartitionInfoDTO> retList = new ArrayList<>();
+		
 		KafkaResearchConfig config = SpringBeanTool.getBean(KafkaResearchConfig.class);
 		AdminClient adminClient = config.getAdminClient();
-		
-		DeleteConsumerGroupsResult res = adminClient.deleteConsumerGroups(Collections.singletonList(groupId));
-		KafkaFuture<Void> future = res.all();
+		//所有主题的所有分区、及其消费情况
+		ListConsumerGroupOffsetsResult result = adminClient.listConsumerGroupOffsets(groupId);
+		KafkaFuture<Map<TopicPartition, OffsetAndMetadata>> future = result.partitionsToOffsetAndMetadata();
+		Map<TopicPartition, OffsetAndMetadata> map;
 		try {
-			//上边的consumer.wakeup()，导致consumer.close()，而close可能需要30秒
-			//所以，这里多等会儿。给足时间让其顺利close
-			Void v = future.get(40, TimeUnit.SECONDS);
-			return KaResearchConstant.RES_SUCCESS;
+			map = future.get(5, TimeUnit.SECONDS);
 		} catch(Exception e) {
-			e.printStackTrace();
-			return e.getMessage();
+			return retList;
 		}
+		
+		map.forEach((k, v) -> {
+			ResearchPartitionInfoDTO ele = new ResearchPartitionInfoDTO();
+			ele.setTopicName(k.topic());
+			ele.setPartition(k.partition());
+			ele.setOffset(v.offset());
+			retList.add(ele);
+		});
+		
+		//排序
+		retList.stream()
+		.sorted(Comparator.comparing(ResearchPartitionInfoDTO::getPartition))
+		.collect(Collectors.toList());
+		
+		return retList;
 	}
 	
 	
+	
+	
+	
+	
+	
+	
+	
+	/**
+	 * poll得到的消息数量
+	 */
+	private static int MAX_POLL_RECORDS_NUM = 5;
 	/**
 	 * 新建消费者组
 	 */
 	static class newConsumerGroupThread extends Thread {
 		private String topicName;
 		private String groupId;
+		private String clientId;
 		/**
 		 * 每秒消费数量
 		 */
 		private int num;
 
-		public newConsumerGroupThread(String groupId, String topicName, int num) {
+		public newConsumerGroupThread(String groupId, String clientId, String topicName, int num) {
 			super();
 			this.groupId = groupId;
+			this.clientId = clientId;
 			this.topicName = topicName;
 			this.num = num;
 		}
@@ -94,8 +157,8 @@ public class ConsumerGroupUtil {
 			Map<String, Object> configs = config.getKafkaProperties().buildConsumerProperties();
 			//覆盖application.properties的属性
 			configs.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-			//max.poll.interval.ms的时间要充足，以便有足够的时间来处理每一波儿消息
-			configs.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10); //poll一波儿得到的消息数量
+			configs.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
+			configs.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, MAX_POLL_RECORDS_NUM); //poll一波儿得到的消息数量
 			configs.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, true); //自动提交
 			configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); //从头儿消费
 			
@@ -113,7 +176,10 @@ public class ConsumerGroupUtil {
 					//poll不到消息，则阻塞。阻塞时间结束，往下执行
 					//poll到消息，往下执行
 					long t1 = System.currentTimeMillis();
-					ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(10000));
+					ConsumerRecords<String, String> records = consumer.poll(
+							Duration.ofMillis(5000)
+					);
+					
 					long t2 = System.currentTimeMillis();
 					System.out.println("poll耗时[" + (t2 - t1) + "]ms，查询到消息数量[" + records.count() + "]");
 					for (ConsumerRecord<String, String> record : records) {

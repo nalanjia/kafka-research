@@ -34,6 +34,7 @@ import com.aebiz.util.ConsumerGroupUtil;
 import com.aebiz.util.ConsumerUtil;
 import com.aebiz.util.DateUtil;
 import com.aebiz.util.OtherUtil;
+import com.aebiz.vo.ResearchPartitionInfoDTO;
 
 @RestController
 @RequestMapping("/consumer")
@@ -266,6 +267,14 @@ public class ConsumerController {
 		return res;
 	}
 	
-	
+	/**
+	 * 查询消费者组
+	 * http://localhost:9201/consumer/getConsumerGroup?groupId=mygroup
+	 */
+	@RequestMapping("/getConsumerGroup")
+	public List<ResearchPartitionInfoDTO> getConsumerGroup(@RequestParam("groupId") String groupId) {
+		List<ResearchPartitionInfoDTO> list = ConsumerGroupUtil.getConsumerGroup(groupId);
+		return list;
+	}
 	
 }
