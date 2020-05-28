@@ -62,7 +62,16 @@
 		
 		<el-card class="box-card">
 			<div slot="header" class="clearfix">
-				<span>消息数量</span>
+				<span>分区数量</span>
+			</div>
+			<div class="text item" v-if="resTopicEle.partitionList">
+				{{resTopicEle.partitionList.length}}
+			</div>
+		</el-card>
+		
+		<el-card class="box-card">
+			<div slot="header" class="clearfix">
+				<span>消息总数</span>
 			</div>
 			<div class="text item">
 				{{resTopicEle.logSize}}
@@ -88,6 +97,11 @@
 			</el-option>
 		</el-select> 
 		
+		<el-tooltip placement="right-end">
+			<div slot="content">警告，请谨慎操作生产开关<br/>您的业务项目是无法解析本页面生产的消息的</div>
+			<i class="el-icon-warning"></i>
+		</el-tooltip>
+		
 	</div>
 	
 	<div>
@@ -98,6 +112,7 @@
 			>
 		</el-switch>
 		<el-select v-model="consumeNum" placeholder="每秒消费数量"
+			:disabled="consumeNumDisabled"
 	  	>
 			<el-option
 				v-for="item in consumeNumList"
@@ -107,7 +122,25 @@
 			</el-option>
 		</el-select> 
 		
+		<el-tooltip placement="right-end">
+			<div slot="content">请随意操作消费开关<br/>每次打开都会新建全新的消费者组<br/>完全不会影响您的业务项目</div>
+			<i class="el-icon-sunny"></i>
+		</el-tooltip>
 	</div>
+	
+	<div>
+		<el-card class="box-card" v-for="(item, i) in partitionList">
+			<div slot="header" class="clearfix">
+				<span>分区编号：{{item.partition}}</span>
+			</div>
+			<div class="text item">
+				位移：{{item.offset}}
+			</div>
+		</el-card>
+	</div>	
+	
+	
+	
 </div>
 </body>
 <!-- import Vue before Element -->
@@ -161,6 +194,8 @@ var vueApp = new Vue({
        		switchConsumer : false,
        		//每秒消费数量
        		consumeNum : '',
+       		//每秒消费数量，禁用
+       		consumeNumDisabled : false,
        		consumeNumList: [{
                 value: '1',
                 label: '1'
@@ -180,7 +215,10 @@ var vueApp = new Vue({
             //消费者组ID
 			currentGroupId : '', 
        		
-       		
+			//消费分区
+			partitionList : [],
+			//轮询ID
+      		partitionSetTimeoutId : '',
              
 		} //return end
 	}, //data end
@@ -283,10 +321,24 @@ var vueApp = new Vue({
 			}
 			//下拉框变了
 			if(this.oldTopicName != newTopicName) {
+				
+				//消费者是打开的
+				if(this.switchConsumer == true) {
+					this.showRight("强制关闭了旧主题" + this.oldTopicName + "的消费开关",
+							'切换为新主题' + newTopicName,
+							10000);
+					//强制关闭消费
+					this.switchConsumer = false;
+					//强制触发change
+					this.changeSwitchConsumer(false);
+				}
+				
 				//停止旧的轮询
 				window.clearTimeout(this.topicSetTimeoutId);
 				//记录新的
 				this.oldTopicName = newTopicName;
+				
+				return;
 			}
 		},
 		
@@ -297,7 +349,7 @@ var vueApp = new Vue({
 	    	if(that.switchTopic == true) {
 				that.topicSetTimeoutId = window.setTimeout(() => {
 					that.changeTopicName(newTopicName);
-				}, 2000);
+				}, 1000);
 	    	}
 	    },
 	    
@@ -401,10 +453,21 @@ var vueApp = new Vue({
 	    	//开了，去调用后台，新建消费者组
 	    	if(openOrNot == true) {
 	    		that.realConsume();
+	    		
+	    		//禁止修改数量
+	    		that.consumeNumDisabled = true;
 	    	}
 			//关了，去调用后台，销毁消费者组
 			if(openOrNot == false) {
 				that.realDestoryConsume();
+				
+				//停止旧的轮询
+				window.clearTimeout(that.partitionSetTimeoutId);
+				//隐藏分区
+				that.partitionList = [];
+				
+				//允许修改数量
+				that.consumeNumDisabled = false;
 			}
 	    },
 	    
@@ -423,6 +486,8 @@ var vueApp = new Vue({
   			  	})
 			.then(function (res) {
 				that.currentGroupId = res.data;
+				//轮询
+				that.getConsumerGroup();
 			})
 			.catch(function (error) {
 				that.showTop(error, '新建消费者组realConsume');
@@ -448,6 +513,41 @@ var vueApp = new Vue({
 				that.showTop(error, '销毁消费者组realDestoryConsume');
 			});
 		},		
+		
+		getConsumerGroup : function() {
+			var that = this;
+			var url = '/consumer/getConsumerGroup';
+
+			let param = new URLSearchParams();
+			param.append('groupId', that.currentGroupId);
+			
+			axios({
+				method: 'post',
+				url: url,
+				data: param
+  			  	})
+			.then(function (res) {
+				that.partitionList = res.data;
+				//继续调用
+				that.getConsumerGroupPeriodic();
+			})
+			.catch(function (error) {
+				that.showTop(error, '查看消费者组getConsumerGroup');
+			});
+		},
+		
+		getConsumerGroupPeriodic() {
+	    	var that = this;
+	    	
+	    	//switch开关打开，才有下一次
+	    	if(that.switchConsumer == true) {
+				that.partitionSetTimeoutId = window.setTimeout(() => {
+					that.getConsumerGroup();
+				}, 1000);
+	    	}
+	    },
+		
+		
 		
 	    
 	} //methods end
