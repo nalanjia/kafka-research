@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -201,6 +202,51 @@ public class ConsumerUtil {
 		});
 		
 		return buf.toString();		
+	}
+	
+	
+	public static String getGroupId() {
+		String uuid = GeneDataUtil.geneUuid();
+		String now = DateUtil.getNowTime_EN().replace("-", "");
+		String groupId = now + "-" + uuid;
+		return groupId;
+	}
+	/**
+	 * poll得到的消息数量
+	 */
+	public static int MAX_POLL_RECORDS_NUM = 5;
+	/**
+	 * 新建消费者
+	 */
+	public static KafkaConsumer getKafkaConsumer(String groupId) {
+		KafkaResearchConfig config = SpringBeanTool.getBean(KafkaResearchConfig.class);
+		//取得application.properties的属性
+		Map<String, Object> properties = config.getKafkaProperties().buildConsumerProperties();
+		//覆盖application.properties的属性
+		
+		if(StringUtils.isBlank(groupId)) {
+			groupId = getGroupId();
+		}
+		String clientId = groupId;
+		
+		properties.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
+		properties.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
+		properties.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, MAX_POLL_RECORDS_NUM); //poll一波儿得到的消息数量
+		properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, true); //自动提交
+		properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); //从头儿消费
+		
+		KafkaConsumer<String, String> consumer = new KafkaConsumer<>(properties);
+		return consumer;
+	}
+	
+	public static void closeKafkaConsumer(KafkaConsumer consumer) {
+		if(consumer != null) {
+			try {
+				consumer.close();
+			} catch(Exception e) {
+				e.printStackTrace();
+			}
+		}
 	}
 	
 }

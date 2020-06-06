@@ -22,8 +22,6 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.record.TimestampType;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
-import org.springframework.kafka.listener.KafkaMessageListenerContainer;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -171,6 +169,7 @@ public class ConsumerController {
 		try {
 			map = future.get(5, TimeUnit.SECONDS);
 		} catch(Exception e) {
+			e.printStackTrace();
 			String msg = OtherUtil.getNow() + "消费者组[" + groupId + "]不存在，请从列表中选择存在的消费者组";
 			msg += "<br>" +  this.listGroupId();
 			return msg;
@@ -183,10 +182,13 @@ public class ConsumerController {
 		}
 		
 		//分区的LEO(log end offset) 
-		KafkaConsumer consumer = kafkaTemplateConfig.getKafkaConsumer();
+		KafkaConsumer consumer = ConsumerUtil.getKafkaConsumer(null);
 		Map<TopicPartition, Long> leos = consumer.endOffsets(map.keySet());
 		
 		String str = ConsumerUtil.prepareGroupIdDetails(map, leos);
+		
+		//关闭consumer
+		ConsumerUtil.closeKafkaConsumer(consumer);
 		return str;
 	}
 
@@ -201,7 +203,7 @@ public class ConsumerController {
 			@RequestParam("length") int length) {
 		TopicPartition tp = new TopicPartition(topic, partition);
 		
-		KafkaConsumer consumer = kafkaTemplateConfig.getKafkaConsumer();
+		KafkaConsumer consumer = ConsumerUtil.getKafkaConsumer(null);
 		//assign不会使用消费者组机制的。不会触发重平衡
 		consumer.assign(Arrays.asList(tp));		
 		
@@ -243,6 +245,8 @@ public class ConsumerController {
 			}
 		}
 		
+		//关闭consumer
+		ConsumerUtil.closeKafkaConsumer(consumer);
 		return buf.toString();
 	}
 	

@@ -37,7 +37,7 @@ public class KafkaListenerConfig {
 	//beanRef：当前类的别名
 	//clientIdPrefix：从当前类的普通属性中取值，这叫SpEl表达式方式取值
 	@KafkaListener(
-			topicPattern = "${kafkalistener.topicpattern:topic_2p_1r.*}"
+			topicPattern = "${kafkalistener.topicpattern:research_2p_1r.*}"
 			, id = "${kafkalistener.id:mygroup}"
 			, errorHandler = "myErrorHandler"
 			, autoStartup = "true"

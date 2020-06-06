@@ -87,7 +87,7 @@
 			@change="changeSwitchProducer"
 			>
 		</el-switch>
-		<el-select v-model="produceNum" placeholder="每秒生产数量"
+		<el-select v-model="produceNum" placeholder="每秒至多生产数量"
 	  	>
 			<el-option
 				v-for="item in produceNumList"
@@ -111,7 +111,7 @@
 			@change="changeSwitchConsumer"
 			>
 		</el-switch>
-		<el-select v-model="consumeNum" placeholder="每秒消费数量"
+		<el-select v-model="consumeNum" placeholder="每秒至多消费数量"
 			:disabled="consumeNumDisabled"
 	  	>
 			<el-option

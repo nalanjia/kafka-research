@@ -9,8 +9,6 @@ import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.util.CollectionUtils;
 
-import com.aebiz.config.KafkaResearchConfig;
-import com.aebiz.config.SpringBeanTool;
 import com.aebiz.vo.ResearchPartitionInfoDTO;
 import com.aebiz.vo.ResearchTopicInfoDTO;
 
@@ -20,12 +18,13 @@ public class TopicUtil {
 		ResearchTopicInfoDTO tInfo = new ResearchTopicInfoDTO();
 		tInfo.setReturnTime(DateUtil.getNowTime_EN());
 		
-		KafkaResearchConfig config = SpringBeanTool.getBean(KafkaResearchConfig.class);
-		KafkaConsumer consumer = config.getKafkaConsumer();
+		KafkaConsumer consumer = ConsumerUtil.getKafkaConsumer(null);
 		//查询该主题的所有分区
 		List<PartitionInfo> pList = consumer.partitionsFor(topicName);
 		
 		if(CollectionUtils.isEmpty(pList)) {
+			//关闭consumer
+			ConsumerUtil.closeKafkaConsumer(consumer);
 			return tInfo;
 		}
 		
@@ -54,7 +53,8 @@ public class TopicUtil {
 			tInfo.getPartitionList().add(researchP);
 		});
 		
-		
+		//关闭consumer
+		ConsumerUtil.closeKafkaConsumer(consumer);
 		return tInfo;
 	}
 	

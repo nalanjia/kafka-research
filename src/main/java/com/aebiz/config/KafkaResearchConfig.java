@@ -1,21 +1,12 @@
 package com.aebiz.config;
 
-import java.util.Map;
-
-import javax.annotation.PostConstruct;
-
 import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
-import org.springframework.context.annotation.Bean;
-import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.stereotype.Component;
 
 import kafka.utils.Json;
@@ -55,25 +46,6 @@ public class KafkaResearchConfig {
 	 * spring kafka配置，主要为了拿到配置
 	 */
 	private KafkaProperties kafkaProperties;
-	/**
-	 * 消费者（没有默认的bean暴露，得自己新建）
-	 */
-	private KafkaConsumer kafkaConsumer;
-	
-	/**
-	 * 消费者（没有默认的bean暴露，得自己新建）
-	 */
-	@Bean
-	@ConditionalOnMissingBean(ProducerFactory.class)
-	public KafkaConsumer initKafkaConsumer() {
-		if(this.kafkaConsumer == null) {
-			Map<String, Object> configs = this.getKafkaProperties().buildConsumerProperties();
-			KafkaConsumer<String, String> consumer = new KafkaConsumer<>(configs);
-			this.kafkaConsumer = consumer;
-		}
-		return this.kafkaConsumer;
-	}
-	
 	
 	@Value("${spring.kafka.admin.fail-fast:false}")
 	private String failFast;
@@ -134,8 +106,6 @@ public class KafkaResearchConfig {
 	public KafkaProperties getKafkaProperties() {
 		return kafkaProperties;
 	}
-	public KafkaConsumer getKafkaConsumer() {
-		return kafkaConsumer;
-	}
+	
 	
 }

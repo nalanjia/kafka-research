@@ -55,14 +55,21 @@
 					:value="item.value">
 				</el-option>
 			</el-select>
+			
+			<el-tooltip placement="right-end">
+				<div slot="content">警告，请谨慎选择主题<br/>您的业务项目是无法解析本页面生产的消息的</div>
+				<i class="el-icon-warning"></i>
+			</el-tooltip>
 		</el-form-item>
 		<el-form-item label="消息KEY">
-			<el-input suffix-icon="el-icon-search" maxlength="20" show-word-limit
+			<el-input placeholder="选填" suffix-icon="el-icon-search" 
+				maxlength="20" show-word-limit
 				v-model="pruducer.addOneMsg.keyName"> </el-input>
 		</el-form-item>
 		<el-form-item label="消息">
-			<el-input placeholder="选填" size="medium" suffix-icon="el-icon-search"
-				maxlength="20" show-word-limit v-model="pruducer.addOneMsg.msg">
+			<el-input placeholder="选填" suffix-icon="el-icon-search"
+				maxlength="20" show-word-limit 
+				v-model="pruducer.addOneMsg.msg">
 			</el-input>
 		</el-form-item>
 		<el-form-item>
