@@ -1,4 +1,7 @@
 # Kafka Research
+demo:
+
+    http://www.nalanjia.work:9201/
 
 maven repository:
 
