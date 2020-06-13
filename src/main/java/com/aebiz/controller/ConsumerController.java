@@ -42,6 +42,22 @@ public class ConsumerController {
 	private KafkaResearchConfig kafkaTemplateConfig;
 	
 	/**
+	 * 查询监听器容器列表
+	 * http://localhost:9201/consumer/list
+	 */
+	@Deprecated
+	@RequestMapping("/list")
+	public String list() {
+		StringBuffer buf = new StringBuffer();
+		Collection<MessageListenerContainer> list = kafkaTemplateConfig.getKafkaListenerEndpointRegistry()
+			.getAllListenerContainers();
+		
+//		String str = ConsumerUtil.prepareListenerContainerStr(list);
+		String str = "123";
+		return str;
+	}	
+	
+	/**
 	 * 关闭。关闭之后消费者就不存在了
 	 * http://localhost:9201/consumer/stop
 	 */
@@ -109,19 +125,7 @@ public class ConsumerController {
 		return OtherUtil.getNow() + listenerId + "已暂停，请看列表：" + list();
 	}
 	
-	/**
-	 * 查询监听器容器列表
-	 * http://localhost:9201/consumer/list
-	 */
-	@RequestMapping("/list")
-	public String list() {
-		StringBuffer buf = new StringBuffer();
-		Collection<MessageListenerContainer> list = kafkaTemplateConfig.getKafkaListenerEndpointRegistry()
-			.getAllListenerContainers();
-		
-		String str = ConsumerUtil.prepareListenerContainerStr(list);
-		return str;
-	}
+	
 
 	
 	/**

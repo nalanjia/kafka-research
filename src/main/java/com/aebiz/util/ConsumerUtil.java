@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
@@ -15,147 +16,102 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
+import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.MessageListenerContainer;
 
 import com.aebiz.config.KafkaResearchConfig;
 import com.aebiz.config.SpringBeanTool;
+import com.aebiz.vo.ResearchListenerContainerDTO;
+import com.aebiz.vo.ResearchMetricDTO;
 
 public class ConsumerUtil {
 	
 	/**
 	 * 展示监听器容器
 	 */
-	public static String prepareListenerContainerStr(Collection<MessageListenerContainer> list) {
-		StringBuffer buf = new StringBuffer();
-		buf.append("<br>" + OtherUtil.getNow() + "MessageListenerContainer总数量为[" + list.size() + "]");
-		
+	public static List<ResearchListenerContainerDTO> listListener(Collection<MessageListenerContainer> list) {
+		List<ResearchListenerContainerDTO> retList = new ArrayList<>();
 		list.forEach(t -> {
-			//t是ConcurrentMessageListenerContainer
+			ResearchListenerContainerDTO dto = new ResearchListenerContainerDTO();
+			
+			ConcurrentMessageListenerContainer container = (ConcurrentMessageListenerContainer)t;
+			
+			dto.setConcurrency(container.getConcurrency());
+			
+			//分区
 			Collection<TopicPartition> topicPartitions = t.getAssignedPartitions();
+			dto.setTopicPartitions(topicPartitions.toString());
+			
+			//消费者配置
 			ContainerProperties containerProperties = t.getContainerProperties();
-			String groupId = t.getGroupId();
-			String listenerId = t.getListenerId();
-			int phase = t.getPhase();
-			boolean isAutoStartup = t.isAutoStartup();
-			boolean isContainerPaused = t.isContainerPaused();
-			boolean isPauseRequested = t.isPauseRequested();
-			boolean isRunning = t.isRunning();
+			dto.setContainerProperties(containerProperties);
+			
+			//消费者组
+			dto.setGroupId(t.getGroupId());
+			//监听器id
+			dto.setListenerId(t.getListenerId());
+			
+			dto.setPhase(t.getPhase());
+			
+			//随项目启动
+			dto.setAutoStartup(t.isAutoStartup());
+			//已暂停
+			dto.setContainerPaused(t.isContainerPaused());
+			//发出暂停
+			dto.setPauseRequested(t.isPauseRequested());
+			//正在运行
+			dto.setRunning(t.isRunning());
+			
+			//度量
 			Map<String, Map<MetricName, ? extends Metric>> metrics = t.metrics();
 			
-			String spanBegin = "<span style='color:red;font-weight:bold;'>";
-			String spanEnd = "</span>";
-			buf.append("<br>" + spanBegin + "topicPartitions : " + spanEnd)
-			.append(topicPartitions)
-			.append("<br>" + spanBegin + "containerProperties : " + spanEnd)
-			.append(containerProperties)
-			.append("<br>" + spanBegin + "groupId : " + spanEnd)
-			.append(groupId)
-			.append("<br>" + spanBegin + "listenerId : " + spanEnd)
-			.append(listenerId)
-			.append("<br>" + spanBegin + "phase : " + spanEnd)
-			.append(phase)
-			.append("<br>" + spanBegin + "isAutoStartup : " + spanEnd)
-			.append(isAutoStartup)
-			.append("<br>" + spanBegin + "isContainerPaused : " + spanEnd)
-			.append(isContainerPaused)
-			.append("<br>" + spanBegin + "isPauseRequested : " + spanEnd)
-			.append(isPauseRequested)
-			.append("<br>" + spanBegin + "isRunning : " + spanEnd)
-			.append(isRunning)
-			.append("<br>" + spanBegin + "metrics : " + spanEnd)
-			.append(ConsumerUtil.prepareMetricStr(metrics))
-			.append("<br>------------------------------------------------------------------------------------------")
-			;
-		});
-		return buf.toString();
-	}
-	
-	/**
-	 * 展示度量指标数据-按分组展示
-	 */
-	private static String prepareMetricStrComplex(Map<String, Map<MetricName, ? extends Metric>> metrics) {
-		StringBuffer buf = new StringBuffer();
-		
-		metrics.forEach((k, v) -> {
-			//消费者
-			buf.append("<br>" + k);
-			
-			//按MetricName的group分组
-			Map<String, List<MetricName>> groupMap = 
-					new HashMap<>();
-			v.forEach((metricKey, metricValue) -> {
-				String group = metricKey.group();
-				List<MetricName> groupList = groupMap.get(group);
-				if(groupList == null) {
-					groupList = new ArrayList<>();
-					groupMap.put(group, groupList);
-				}
-				groupList.add(metricKey);
-			});
-			
-			//分组名，排序
-			Map<String, List<MetricName>> groupMap2 = groupMap.entrySet().stream()
-				    .sorted(Map.Entry.comparingByKey())
-				    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
-				    (oldValue, newValue) -> oldValue, LinkedHashMap::new));
-			
-			//按分组打印
-			String spanBegin = "<span style='color:blue;font-weight:bold;'>";
-			String spanEnd = "</span>";
-			groupMap2.forEach((group, groupList) -> {
+			metrics.forEach((k, v) -> {
 				
-				buf.append("<br>　　" + spanBegin + group + "[" + groupList.size() + "]" + spanEnd);
+				//Map<度量类别, List<ResearchMetricDTO>>
+				Map<String, List<ResearchMetricDTO>> map = new TreeMap<>();
+				dto.getMetricMap().put(k, map);
 				
-				groupList.forEach(metric -> {
-					buf.append("<br>　　　　名称 : " + metric.name());
-					buf.append("<br>　　　　描述 : " + metric.description());
-					buf.append("<br>　　　　标签 : " + metric.tags());
-					
-					Metric value = v.get(metric);
-					buf.append("<br>　　　　值　 : " + value.metricValue());
-					
-					if(groupList.size() > 1) {
-						buf.append("<br>　　-------------");
+				//按MetricName的group分组
+				Map<String, List<MetricName>> groupMap = 
+						new HashMap<>();
+				v.forEach((metricKey, metricValue) -> {
+					String group = metricKey.group();
+					List<MetricName> groupList = groupMap.get(group);
+					if(groupList == null) {
+						groupList = new ArrayList<>();
+						groupMap.put(group, groupList);
 					}
+					groupList.add(metricKey);
 				});
 				
-				buf.append("<br>　　---------------------------------------");
+				//分组名，排序
+				Map<String, List<MetricName>> groupMap2 = groupMap.entrySet().stream()
+					    .sorted(Map.Entry.comparingByKey())
+					    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+					    (oldValue, newValue) -> oldValue, LinkedHashMap::new));
+				
+				groupMap2.forEach((group, groupList) -> {
+					
+					List<ResearchMetricDTO> mList = new ArrayList<>();
+					map.put(group, mList);
+					
+					groupList.forEach(metric -> {
+						ResearchMetricDTO metricDTO = new ResearchMetricDTO();
+						
+						metricDTO.setName(metric.name());
+						metricDTO.setDesc(metric.description());
+						Metric value = v.get(metric);
+						metricDTO.setValue(value.metricValue().toString());
+						mList.add(metricDTO);
+						
+					});
+				});
 			});
-		});
-		
-		return buf.toString();
-	
-	}
-	
-	/**
-	 * 展示度量指标数据-简单展示
-	 */
-	private static String prepareMetricStrSimple(Map<String, Map<MetricName, ? extends Metric>> metrics) {
-		StringBuffer buf = new StringBuffer();
-		
-		metrics.forEach((k, v) -> {
-			//消费者
-			buf.append("<br>" + k);
 			
-			//消费者的度量指标
-			v.forEach((metricKey, metricValue) -> {
-				buf.append("<br>　　" + metricKey);
-				buf.append("<br>　　" + metricValue.metricValue());
-				buf.append("<br>　　-------------");
-			});
+			retList.add(dto);
 		});
-		
-		return buf.toString();
-	}
-	
-	/**
-	 * 展示度量指标数据
-	 */
-	public static String prepareMetricStr(Map<String, Map<MetricName, ? extends Metric>> metrics) {
-//		String ret = prepareMetricStrSimple(metrics);
-		String ret = prepareMetricStrComplex(metrics);
-		return ret;
+		return retList;
 	}
 	
 	/**
