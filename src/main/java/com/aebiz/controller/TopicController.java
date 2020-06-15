@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aebiz.config.KafkaResearchConfig;
+import com.aebiz.util.KaResearchConstant;
 import com.aebiz.util.TopicUtil;
 import com.aebiz.vo.ResearchTopicInfoDTO;
 
@@ -41,6 +42,12 @@ public class TopicController {
 		} catch(Exception e) {
 			e.printStackTrace();
 		}
+		
+		//把IP主题去掉
+		if(list != null) {
+			list.remove(KaResearchConstant.TOPIC_IP);
+		}
+		
 		return list;
 	}
 	

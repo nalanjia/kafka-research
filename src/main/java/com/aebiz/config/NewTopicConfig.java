@@ -62,5 +62,20 @@ public class NewTopicConfig {
 					.build();
 		return topic;
     }	
+
+	@Bean
+    public NewTopic initTopicIp() {
+		//分区
+		int numPartitions = 1;
+		//副本
+		short replicationFactor = 1;
+		
+		NewTopic topic = TopicBuilder.name(KaResearchConstant.TOPIC_IP)
+					.partitions(numPartitions)
+					.replicas(replicationFactor)
+					.compact()
+					.build();
+		return topic;
+    }
 	
 }

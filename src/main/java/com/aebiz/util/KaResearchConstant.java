@@ -15,6 +15,10 @@ public class KaResearchConstant {
 	 */
 	public static final String TOPIC_2P_1R = "research_2p_1r";
 	
+	/**
+	 * 访问者IP（单分区，单副本）
+	 */
+	public static final String TOPIC_IP = "research_ip";
 	
 	/**
 	 * 返回给页面
