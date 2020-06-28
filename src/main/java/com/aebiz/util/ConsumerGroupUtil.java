@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -20,12 +21,14 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.GroupIdNotFoundException;
 import org.apache.kafka.common.errors.WakeupException;
 
 import com.aebiz.config.KafkaResearchConfig;
 import com.aebiz.config.SpringBeanTool;
 import com.aebiz.vo.ResearchPartitionInfoDTO;
 
+import javassist.expr.Instanceof;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -74,7 +77,11 @@ public class ConsumerGroupUtil {
 				System.out.println("尝试关闭消费者组第[" + (i+1) + "/" + length + "]次，成功！");
 				return KaResearchConstant.RES_SUCCESS;
 			} catch(Exception e) {
-				System.out.println("尝试关闭消费者组第[" + (i+1) + "/" + length + "]次，失败！报错为" + e.getMessage());
+				if(e.getMessage().contains("The group id does not")) {
+					System.out.println("尝试关闭消费者组第[" + (i+1) + "/" + length + "]次，成功！因为报错GroupIdNotFoundException，" + e.getMessage());
+					break;
+				}
+				System.out.println("试关闭消费者组第[" + (i+1) + "/" + length + "]次，失败！报错为" + e.getMessage());
 				try {
 					Thread.sleep(1000);
 				} catch (InterruptedException e1) {
@@ -193,7 +200,7 @@ public class ConsumerGroupUtil {
 			} finally {
 				log.debug("groupId[" + this.groupId + "] finally consumer is closed.........................");
 				//关闭consumer
-				ConsumerUtil.closeKafkaConsumer(this.consumer);
+				ConsumerGroupUtil.deleteConsumerGroup(this.groupId);
 			}
 					
 		}

@@ -195,14 +195,4 @@ public class ConsumerUtil {
 		return consumer;
 	}
 	
-	public static void closeKafkaConsumer(KafkaConsumer consumer) {
-		if(consumer != null) {
-			try {
-				consumer.close();
-			} catch(Exception e) {
-				e.printStackTrace();
-			}
-		}
-	}
-	
 }

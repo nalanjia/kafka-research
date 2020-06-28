@@ -45,7 +45,7 @@ public class KafkaListenerConfig {
 			, beanRef = "__myLisBean"
 			, clientIdPrefix = "#{__myLisBean.myClientIdPrefix}"
 			
-			, concurrency = "2"
+			, concurrency = "1"
 			)
     public void listen(
     		String msg, //消息体

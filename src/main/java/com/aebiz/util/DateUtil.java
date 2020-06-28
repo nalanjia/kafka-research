@@ -7,6 +7,7 @@ import java.time.LocalTime;
 import java.time.MonthDay;
 import java.time.Period;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.time.temporal.ChronoUnit;
@@ -72,6 +73,17 @@ public class DateUtil {
 	private static final DateTimeFormatter longDate = DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG);
 	private static final DateTimeFormatter mediumDate = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM);
 
+	/**
+	 * 取得毫秒数
+	 * @param str 1970-01-01 08:00:01
+	 * @return
+	 */
+	public static long getLong(String str) {
+		LocalDateTime date = LocalDateTime.parse(str, yyyyMMddHHmmss_EN);
+		Long milliSecond = date.toInstant(ZoneOffset.of("+8")).toEpochMilli();
+		return milliSecond;
+	}
+	
 	/**
 	 * 获取当前日期
 	 * 

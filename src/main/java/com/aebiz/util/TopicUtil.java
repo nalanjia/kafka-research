@@ -18,13 +18,14 @@ public class TopicUtil {
 		ResearchTopicInfoDTO tInfo = new ResearchTopicInfoDTO();
 		tInfo.setReturnTime(DateUtil.getNowTime_EN());
 		
-		KafkaConsumer consumer = ConsumerUtil.getKafkaConsumer(null);
+		String groupId = ConsumerUtil.getGroupId();
+		KafkaConsumer consumer = ConsumerUtil.getKafkaConsumer(groupId);
 		//查询该主题的所有分区
 		List<PartitionInfo> pList = consumer.partitionsFor(topicName);
 		
 		if(CollectionUtils.isEmpty(pList)) {
 			//关闭consumer
-			ConsumerUtil.closeKafkaConsumer(consumer);
+			ConsumerGroupUtil.deleteConsumerGroup(groupId);
 			return tInfo;
 		}
 		
@@ -33,7 +34,7 @@ public class TopicUtil {
 			TopicPartition tp = new TopicPartition(topicName, p.partition());
 			tpList.add(tp);
 		});
-		//为消费者指定分区（覆盖上次的指定）
+		//为消费者指定分区
 		consumer.assign(tpList);
 		
 		//查询各个分区的first offset，end offset
@@ -54,7 +55,7 @@ public class TopicUtil {
 		});
 		
 		//关闭consumer
-		ConsumerUtil.closeKafkaConsumer(consumer);
+		ConsumerGroupUtil.deleteConsumerGroup(groupId);
 		return tInfo;
 	}
 	
