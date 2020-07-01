@@ -88,6 +88,11 @@ public class ConsumerPagerController {
 		long all2 = System.currentTimeMillis();
 		//System.out.println("before : " + (all2 - t1));
 		
+		System.out.println("nowPage : " + nowPage);
+		System.out.println("pageShow : " + pageShow);
+		System.out.println("acceptedCount : " + acceptedCount);
+		System.out.println("shouldSkipNum : " + shouldSkipNum);
+		
 		//消费消息
 		outerFor:
 		for(;;) {
@@ -95,6 +100,7 @@ public class ConsumerPagerController {
 			ConsumerRecords<String, String> records = consumer.poll(
 					Duration.ofMillis(100)
 			);
+			
 			long c2 = System.currentTimeMillis();
 			//System.out.println("poll : " + (c2 - c1));
 			
@@ -107,7 +113,7 @@ public class ConsumerPagerController {
 			for(ConsumerRecord<String, String> record : records) {
 				//这条消息不属于目标页，则跳过这条消息
 				acceptedCount++;
-				if(acceptedCount < shouldSkipNum) {
+				if(acceptedCount <= shouldSkipNum) {
 					continue innerFor;
 				}
 				
@@ -128,7 +134,7 @@ public class ConsumerPagerController {
 				}
 				
 				//超过查询条件所限制的结束位置了
-				if(record.offset() > endOffset) {
+				if(record.offset() >= endOffset) {
 					break outerFor;
 				}
 				
@@ -140,6 +146,9 @@ public class ConsumerPagerController {
 				ele.setMsgTimestamp(record.timestamp());
 				ele.setMsgTimestampType(record.timestampType().name());
 				ele.setMsg(record.value());
+				
+				String str = DateUtil.formatLong(record.timestamp());
+				ele.setMsgTimestampStr(str);
 				
 				pager.getResults().add(ele);
 			}

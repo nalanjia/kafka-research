@@ -27,7 +27,7 @@ public class TopicController {
 	private KafkaResearchConfig kafkaTemplateConfig;
 	
 	/**
-	 * 查询主题列表
+	 * 查询主题列表（除去不展示的主题）
 	 * http://localhost:9201/topic/getTopicList
 	 */
 	@RequestMapping("/getTopicList")
@@ -50,6 +50,27 @@ public class TopicController {
 		
 		return list;
 	}
+	
+	/**
+	 * 查询主题列表（所有主题）
+	 * http://localhost:9201/topic/getAllTopicList
+	 */
+	@RequestMapping("/getAllTopicList")
+	public Set<String> getAllTopicList() {
+		AdminClient adminClient = kafkaTemplateConfig.getAdminClient();
+		ListTopicsResult result = adminClient.listTopics();
+		
+		KafkaFuture<Set<String>> future = result.names();
+		Set<String> list = null;
+		try {
+			list = future.get(5, TimeUnit.SECONDS);
+		} catch(Exception e) {
+			e.printStackTrace();
+		}
+		
+		return list;
+	}
+		
 	
 	/**
 	 * 查询主题具体信息

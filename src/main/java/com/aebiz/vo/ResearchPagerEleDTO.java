@@ -11,6 +11,7 @@ public class ResearchPagerEleDTO {
 	
 	private String msgKey;
 	private long msgTimestamp;
+	private String msgTimestampStr;
 	private String msgTimestampType;
 	private String msg;
 	

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!-- import CSS -->
+<link rel="stylesheet" href=../common/css/index.css>
+<style type="text/css">
+[v-cloak]{
+            display: none;
+        }
+.el-table--striped .el-table__body tr.el-table__row--striped.current-row td, .el-table__body tr.current-row>td {
+    background-color: #FF8C00!important;
+}
+.el-aside {
+    background-color: #D3DCE6;
+    height: 300px;
+}
+.el-main {
+    background-color: #E9EEF3;
+    height: 300px;
+    padding: 0px;
+}
+.el-dialog__header {
+	padding: 10px 10px;
+}
+.el-dialog__body {
+	padding: 0px 10px;
+}
+.el-dialog__footer {
+	padding: 10px 20px 10px;
+}        
+</style>
+</head>
+<body>
+<div id="app" v-cloak>
+	<div>
+	  	<el-select v-model="selectedTopicName" placeholder="请选择主题"
+	  		@change="changeTopicName"
+	  	>
+			<el-option
+				v-for="item in topicList"
+				:key="item.value"
+				:label="item.label"
+				:value="item.value">
+			</el-option>
+		</el-select>
+		
+		<el-date-picker
+			v-model="searchTime"
+			type="datetimerange"
+			:picker-options="pickerOptions"
+			@change="changeDatePicker"
+			range-separator="至"
+			start-placeholder="开始日期"
+			end-placeholder="结束日期"
+			value-format="yyyy-MM-dd HH:mm:ss"
+			align="right">
+		</el-date-picker>
+		
+		<el-tooltip placement="right-end">
+			<div slot="content">请随意操作<br/>每次分页查询都会新建全新的消费者组<br/>完全不会影响您的业务项目</div>
+			<i class="el-icon-sunny"></i>
+		</el-tooltip>
+	</div>
+	
+	<el-table :data="tableData" height="450" border stripe 
+		style="width: 100%"
+		highlight-current-row
+		@current-change="handleCC"
+		@selection-change="handleSC"
+		>
+		<el-table-column
+      		type="selection"
+      		min-width="55">
+    	</el-table-column>
+		<el-table-column label="序号"
+			type="index"
+			width="55">
+		</el-table-column>
+		<el-table-column label="主题" min-width="80">
+			<template slot-scope="scope">
+				{{scope.row.topicName}}
+			</template>
+		</el-table-column>
+		<el-table-column label="分区" min-width="40">
+			<template slot-scope="scope">
+				{{scope.row.partition}}
+			</template>
+		</el-table-column>
+		<el-table-column label="offset" min-width="80">
+			<template slot-scope="scope">
+				{{scope.row.offset}}
+			</template>
+		</el-table-column>
+		<el-table-column label="消息key" min-width="80">
+			<template slot-scope="scope">
+				{{scope.row.msgKey}}
+			</template>
+		</el-table-column>
+		<el-table-column label="时刻类型" min-width="80">
+			<template slot-scope="scope">
+				{{scope.row.msgTimestampType}}
+			</template>
+		</el-table-column>
+		<el-table-column label="时刻" min-width="80">
+			<template slot-scope="scope">
+				{{scope.row.msgTimestampStr}}
+			</template>
+		</el-table-column>
+		<el-table-column label="消息内容" min-width="80">
+			<template slot-scope="scope">
+				{{scope.row.msg}}
+			</template>
+		</el-table-column>
+		
+	</el-table>		
+	<el-pagination
+		@size-change="handleSizeChange"
+		@current-change="handleCurrentChange"
+		:current-page="nowPage"
+		:page-sizes="[1, 5, 10]"
+		:page-size="pageShow"
+		layout="total, sizes, prev, pager, next, jumper"
+		:total="totalNum">
+    </el-pagination>
+	
+	
+</div>
+</body>
+<!-- import Vue before Element -->
+<script src="../common/js/vue.js"></script>
+<!-- import JavaScript -->
+<script src="../common/js/index.js"></script>
+<!-- import ajax -->
+<script src="../common/js/axios.min.js"></script>
+<script>
+var vueApp = new Vue({
+	el : '#app',
+	data : function() {
+		return {
+			//下拉框勾选中的主题名称，当前的
+			selectedTopicName : '',
+			//下拉框，刚进本页面初始化之
+      		topicList : [],
+			
+      		tableData : [], //列表数据
+			
+      		currentRow : null, //点击中的行，用于高亮选中行
+      		checkboxList : [], //复选框选中的数据
+      		
+      		nowPage : 1,
+      		pageShow : 5,
+      		totalNum : 0,
+      		
+      		searchTime : '',
+			pickerOptions: {
+    	          shortcuts: [{
+    	            text: '最近一周',
+    	            onClick(picker) {
+    	              const end = new Date();
+    	              const start = new Date();
+    	              start.setTime(start.getTime() - 3600 * 1000 * 24 * 7);
+    	              picker.$emit('pick', [start, end]);
+    	            }
+    	          }, {
+    	            text: '最近一个月',
+    	            onClick(picker) {
+    	              const end = new Date();
+    	              const start = new Date();
+    	              start.setTime(start.getTime() - 3600 * 1000 * 24 * 30);
+    	              picker.$emit('pick', [start, end]);
+    	            }
+    	          }, {
+    	            text: '最近三个月',
+    	            onClick(picker) {
+    	              const end = new Date();
+    	              const start = new Date();
+    	              start.setTime(start.getTime() - 3600 * 1000 * 24 * 90);
+    	              picker.$emit('pick', [start, end]);
+    	            }
+    	          }]
+			},
+             
+		} //return end
+	}, //data end
+     
+	mounted : function() {
+		this.getTopicList();
+	},
+     
+	methods : {
+		//阻断性提示，用户看完，自己关闭
+		showAlert(title, msg) {
+			this.$alert(msg, title, {
+		          confirmButtonText: '确定'
+		        });
+		},
+		
+		//顶部的提示，属于不顺利的情况下，用户看看就好
+		showTop(msg, position) {
+			this.$message({
+				dangerouslyUseHTMLString: true,
+				type: 'info',
+				message: '<strong>' + position + '</strong><br>' + msg
+			});
+		},
+		
+		//右侧提示，属于顺利情况下，业务提示
+		showRight(title, msg, mstime) {
+			var str = "<span style='float:left;text-align:left;'>" + msg + "</span>";
+			msg = str;
+			
+			var that = this;
+			//避免重叠的写法setTimeout
+			window.setTimeout(() => {
+				that.$notify.success({
+					dangerouslyUseHTMLString: true,
+		          	title: title,
+		          	message: msg,
+		          	showClose: false,
+		          	duration: mstime
+		        });
+			}, 0)
+	    },
+		getTopicList : function() {
+			var that = this;
+			var url = '/topic/getAllTopicList';
+
+			axios({
+				method: 'post',
+				url: url
+  			  	})
+			.then(function (res) {
+				for (i in res.data) {
+					let ele = {
+						"label" : res.data[i],
+						"value" : res.data[i]
+					}
+					that.topicList.push(ele);
+				}
+			})
+			.catch(function (error) {
+				that.showTop(error, '查询主题列表getTopicList');
+			});
+		},
+   	  
+		changeTopicName : function(newTopicName) {
+			var that = this;
+			var url = '/consumer/pager/queryList';
+
+			if(this.selectedTopicName == '') {
+				return;
+			}
+			
+			let param = new URLSearchParams();
+			param.append('topicName', newTopicName);
+			param.append('nowPage', this.nowPage);
+			param.append('pageShow', this.pageShow);
+			
+			if(this.searchTime && this.searchTime != '') {
+				param.append('beginTime', this.searchTime[0]);
+				param.append('endTime', this.searchTime[1]);
+			}
+			
+			axios({
+				method: 'post',
+				url: url,
+				data: param
+  			  	})
+			.then(function (res) {
+				let researchPager = res.data;
+				
+				that.tableData = researchPager.results;
+				that.totalNum = researchPager.totalNum;
+			})
+			.catch(function (error) {
+				that.showTop(error, '查询消息列表changeTopicName');
+			});
+		},
+		
+		handleCC(row) {
+	    	this.currentRow = row;
+	    },
+	    
+	    handleSC(selection) {
+	    	this.checkboxList = selection;
+	    },
+		
+	    handleSizeChange(val) {
+	    	this.pageShow = val;
+	        this.changeTopicName(this.selectedTopicName); 
+		},
+		handleCurrentChange(val) {
+			this.nowPage = val;
+	        this.changeTopicName(this.selectedTopicName);
+		},
+		
+		changeDatePicker(time) {
+			this.changeTopicName(this.selectedTopicName);
+		},
+		
+	    
+	} //methods end
+}) //new Vue end
+
+</script>
+</html>

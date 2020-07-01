@@ -1,6 +1,7 @@
 package com.aebiz.util;
 
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -83,6 +84,13 @@ public class DateUtil {
 		Long milliSecond = date.toInstant(ZoneOffset.of("+8")).toEpochMilli();
 		return milliSecond;
 	}
+	
+	public static String formatLong(long time) {
+		LocalDateTime date = LocalDateTime.ofInstant(Instant.ofEpochMilli(time), ZoneId.systemDefault());
+		String str = date.format(yyyyMMddHHmmss_EN);
+		return str;
+	}
+	
 	
 	/**
 	 * 获取当前日期
