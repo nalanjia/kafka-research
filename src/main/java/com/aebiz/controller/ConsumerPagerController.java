@@ -88,10 +88,10 @@ public class ConsumerPagerController {
 		long all2 = System.currentTimeMillis();
 		//System.out.println("before : " + (all2 - t1));
 		
-		System.out.println("nowPage : " + nowPage);
-		System.out.println("pageShow : " + pageShow);
-		System.out.println("acceptedCount : " + acceptedCount);
-		System.out.println("shouldSkipNum : " + shouldSkipNum);
+//		System.out.println("nowPage : " + nowPage);
+//		System.out.println("pageShow : " + pageShow);
+//		System.out.println("acceptedCount : " + acceptedCount);
+//		System.out.println("shouldSkipNum : " + shouldSkipNum);
 		
 		//消费消息
 		outerFor:

@@ -10,7 +10,6 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.lionsoul.ip2region.DataBlock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -37,12 +36,12 @@ public class IpFilter implements Filter {
 		//访问了首页
 		if("/".equals(uri)) {
 			String ip = getIp(req);
-			DataBlock info = IpConfig.getIpInfo(ip);
+			String info = IpConfig.getIpInfo(ip);
 			
 			//向IP主题插入1条消息
 			String topicName = KaResearchConstant.TOPIC_IP;
 			String keyName = null;
-			String msg = info.toString();
+			String msg = ip + " " + info;
 			producerController.addOneMsg(topicName, keyName, msg);
 			log.debug("[" + ip + "]访问了首页，该IP详情为" + msg);
 		}
