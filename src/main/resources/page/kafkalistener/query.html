@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!-- import CSS -->
+<link rel="stylesheet" href="../common/css/index.css">
+<style type="text/css">
+[v-cloak]{
+            display: none;
+        }
+.el-table--striped .el-table__body tr.el-table__row--striped.current-row td, .el-table__body tr.current-row>td {
+    background-color: #FF8C00!important;
+}
+.el-aside {
+    background-color: #D3DCE6;
+    height: 300px;
+}
+.el-main {
+    background-color: #E9EEF3;
+    height: 300px;
+    padding: 0px;
+}
+.el-dialog__header {
+	padding: 10px 10px;
+}
+.el-dialog__body {
+	padding: 0px 10px;
+}
+.el-dialog__footer {
+	padding: 10px 20px 10px;
+}        
+</style>
+</head>
+<body>
+<div id="app" v-cloak>
+	<el-table :data="tableData" height="450" border stripe 
+		style="width: 100%"
+		highlight-current-row
+		@current-change="handleCC"
+		@selection-change="handleSC"
+		v-loading="loading"
+		:element-loading-text="elementLoadingText"
+		element-loading-spinner="el-icon-loading"
+		element-loading-background="rgba(0, 0, 0, 0.8)"
+		>
+		<el-table-column
+      		type="selection"
+      		min-width="55">
+    	</el-table-column>
+		<el-table-column label="序号"
+			type="index"
+			width="55">
+		</el-table-column>
+		<el-table-column label="listenerId" min-width="80">
+			<template slot-scope="scope">
+				{{scope.row.listenerId}}
+			</template>
+		</el-table-column>
+		<el-table-column label="concurrency" min-width="80">
+			<template slot-scope="scope">
+				{{scope.row.concurrency}}
+			</template>
+		</el-table-column>
+		<el-table-column label="分区" min-width="80">
+			<template slot-scope="scope">
+				{{scope.row.topicPartitions}}
+			</template>
+		</el-table-column>
+		<el-table-column label="是否暂停" min-width="80">
+			<template slot-scope="scope">
+				<span v-if="scope.row.containerPaused == true">
+					<img src="../common/img/right.png" width="25" height="25" />
+				</span>
+				<span v-if="scope.row.containerPaused == false">
+					<img src="../common/img/wrong.png" width="25" height="25" />
+				</span>
+			</template>
+		</el-table-column>
+		<el-table-column label="是否自动启动" min-width="80">
+			<template slot-scope="scope">
+				<span v-if="scope.row.autoStartup == true">
+					<img src="../common/img/right.png" width="25" height="25" />
+				</span>
+				<span v-if="scope.row.autoStartup == false">
+					<img src="../common/img/wrong.png" width="25" height="25" />
+				</span>
+			</template>
+		</el-table-column>
+		<el-table-column label="是否运行" min-width="80">
+			<template slot-scope="scope">
+				<span v-if="scope.row.running == true">
+					<img src="../common/img/right.png" width="25" height="25" />
+				</span>
+				<span v-if="scope.row.running == false">
+					<img src="../common/img/wrong.png" width="25" height="25" />
+				</span>
+			</template>
+		</el-table-column>
+		
+		<el-table-column label="操作" min-width="150" align="center">
+			<template slot="header" slot-scope="scope">
+				操作
+			</template>
+		
+			<template slot-scope="scope">
+				<el-button
+					v-if="scope.row.containerPaused == false" 
+					round size="mini" 
+					@click="pause(scope.row)">暂停</el-button>
+				<el-button
+					v-if="scope.row.containerPaused == true" 
+					round size="mini" 
+					@click="resume(scope.row)">恢复</el-button>
+				<el-button
+					v-if="scope.row.running == true" 
+					round size="mini" 
+					@click="stop(scope.row)">关闭</el-button>
+				<el-button
+					v-if="scope.row.running == false" 
+					round size="mini" 
+					@click="start(scope.row)">启动</el-button>
+			</template>
+		</el-table-column>
+		
+		
+	</el-table>		
+	
+	
+</div>
+</body>
+<!-- import Vue before Element -->
+<script src="../common/js/vue.js"></script>
+<!-- import JavaScript -->
+<script src="../common/js/index.js"></script>
+<!-- import ajax -->
+<script src="../common/js/axios.min.js"></script>
+<script>
+var vueApp = new Vue({
+	el : '#app',
+	data : function() {
+		return {
+      		tableData : [], //列表数据
+			
+      		currentRow : null, //点击中的行，用于高亮选中行
+      		checkboxList : [], //复选框选中的数据
+      		
+      		loading: false,
+      		elementLoadingText : '',
+      		
+		} //return end
+	}, //data end
+     
+	mounted : function() {
+		this.query();
+	},
+     
+	methods : {
+		//阻断性提示，用户看完，自己关闭
+		showAlert(title, msg) {
+			this.$alert(msg, title, {
+		          confirmButtonText: '确定'
+		        });
+		},
+		
+		//顶部的提示，属于不顺利的情况下，用户看看就好
+		showTop(msg, position) {
+			this.$message({
+				dangerouslyUseHTMLString: true,
+				type: 'info',
+				message: '<strong>' + position + '</strong><br>' + msg
+			});
+		},
+		
+		//右侧提示，属于顺利情况下，业务提示
+		showRight(title, msg, mstime) {
+			var str = "<span style='float:left;text-align:left;'>" + msg + "</span>";
+			msg = str;
+			
+			var that = this;
+			//避免重叠的写法setTimeout
+			window.setTimeout(() => {
+				that.$notify.success({
+					dangerouslyUseHTMLString: true,
+		          	title: title,
+		          	message: msg,
+		          	showClose: false,
+		          	duration: mstime
+		        });
+			}, 0)
+	    },
+   	  
+		handleCC(row) {
+	    	this.currentRow = row;
+	    },
+	    
+	    handleSC(selection) {
+	    	this.checkboxList = selection;
+	    },
+		
+	    query : function() {
+			var that = this;
+			var url = '/kafkalistener/list';
+
+			axios({
+				method: 'post',
+				url: url
+  			  	})
+			.then(function (res) {
+				that.tableData = res.data;
+			})
+			.catch(function (error) {
+				that.showTop(error, '查询监听列表query');
+			});
+		},
+	    
+		pause(row) {
+	    	var that = this;
+	        this.$confirm('是否暂停？', '提示', {
+				dangerouslyUseHTMLString: true,
+				confirmButtonText: '确定',
+				cancelButtonText: '取消',
+				type: 'warning'
+	        }).then(() => {
+	        	that.elementLoadingText="拼命暂停中";
+	        	that.pauseReal(row);
+	        	that.loadChange();
+	        }).catch((error) => {
+	        	that.showTop(error, "暂停pause");
+	        });
+	    },
+	    pauseReal(row) {
+	    	var that = this;
+			var url = '/kafkalistener/pause';
+
+			let param = new URLSearchParams();
+			param.append('listenerId', row.listenerId);
+			
+			axios({
+				method: 'post',
+				url: url,
+				data: param
+  			  	})
+			.then(function (res) {
+				
+			})
+			.catch(function (error) {
+				that.showTop(error, '暂停pauseReal');
+			});
+	    },
+		loadChange() {
+	    	var that = this;
+	    	this.loading = true;
+	    	window.setTimeout(() => {
+	    		that.loading = false;
+	    		that.query();
+			}, 5000);
+	    },
+	    
+	    resume(row) {
+	    	var that = this;
+	        this.$confirm('是否恢复？', '提示', {
+				dangerouslyUseHTMLString: true,
+				confirmButtonText: '确定',
+				cancelButtonText: '取消',
+				type: 'warning'
+	        }).then(() => {
+	        	that.elementLoadingText="拼命恢复中";
+	        	that.resumeReal(row);
+	        	that.loadChange();
+	        }).catch((error) => {
+	        	that.showTop(error, "恢复resume");
+	        });
+	    },
+	    resumeReal(row) {
+	    	var that = this;
+			var url = '/kafkalistener/resume';
+
+			let param = new URLSearchParams();
+			param.append('listenerId', row.listenerId);
+			
+			axios({
+				method: 'post',
+				url: url,
+				data: param
+  			  	})
+			.then(function (res) {
+				
+			})
+			.catch(function (error) {
+				that.showTop(error, '恢复resumeReal');
+			});
+	    },	   
+	    
+	    stop(row) {
+	    	var that = this;
+	        this.$confirm('是否关闭？', '提示', {
+				dangerouslyUseHTMLString: true,
+				confirmButtonText: '确定',
+				cancelButtonText: '取消',
+				type: 'warning'
+	        }).then(() => {
+	        	that.elementLoadingText="拼命关闭中";
+	        	that.stopReal(row);
+	        	that.loadChange();
+	        }).catch((error) => {
+	        	that.showTop(error, "关闭stop");
+	        });
+	    },
+	    stopReal(row) {
+	    	var that = this;
+			var url = '/kafkalistener/stop';
+
+			let param = new URLSearchParams();
+			param.append('listenerId', row.listenerId);
+			
+			axios({
+				method: 'post',
+				url: url,
+				data: param
+  			  	})
+			.then(function (res) {
+				
+			})
+			.catch(function (error) {
+				that.showTop(error, '关闭stopReal');
+			});
+	    },
+	    
+	    start(row) {
+	    	var that = this;
+	        this.$confirm('是否启动？', '提示', {
+				dangerouslyUseHTMLString: true,
+				confirmButtonText: '确定',
+				cancelButtonText: '取消',
+				type: 'warning'
+	        }).then(() => {
+	        	that.elementLoadingText="拼命启动中";
+	        	that.startReal(row);
+	        	that.loadChange();
+	        }).catch((error) => {
+	        	that.showTop(error, "启动start");
+	        });
+	    },
+	    startReal(row) {
+	    	var that = this;
+			var url = '/kafkalistener/start';
+
+			let param = new URLSearchParams();
+			param.append('listenerId', row.listenerId);
+			
+			axios({
+				method: 'post',
+				url: url,
+				data: param
+  			  	})
+			.then(function (res) {
+				
+			})
+			.catch(function (error) {
+				that.showTop(error, '启动startReal');
+			});
+	    },	    
+	    
+	    
+	} //methods end
+}) //new Vue end
+
+</script>
+</html>
