@@ -11,24 +11,11 @@
 .el-table--striped .el-table__body tr.el-table__row--striped.current-row td, .el-table__body tr.current-row>td {
     background-color: #FF8C00!important;
 }
-.el-aside {
-    background-color: #D3DCE6;
-    height: 300px;
+.el-drawer__header {
+	padding: 0px;
+	margin-bottom: 0px;
+	height: 0px;
 }
-.el-main {
-    background-color: #E9EEF3;
-    height: 300px;
-    padding: 0px;
-}
-.el-dialog__header {
-	padding: 10px 10px;
-}
-.el-dialog__body {
-	padding: 0px 10px;
-}
-.el-dialog__footer {
-	padding: 10px 20px 10px;
-}        
 </style>
 </head>
 <body>
@@ -119,11 +106,31 @@
 					v-if="scope.row.running == false" 
 					round size="mini" 
 					@click="start(scope.row)">启动</el-button>
+					
+				<el-button
+					round size="mini" 
+					@click="showContainerProperties(scope.row)">查看属性</el-button>
+					
+					
+					
+					
 			</template>
 		</el-table-column>
 		
-		
 	</el-table>		
+	
+	<el-drawer
+		title=""
+		:visible.sync="showP"
+		direction="ltr"
+		size="50%">
+			<el-table :data="pData"
+				height="95%"
+				>
+				<el-table-column property="name" label="属性" width="200"></el-table-column>
+				<el-table-column property="value" label="值"></el-table-column>
+			</el-table>
+	</el-drawer>	
 	
 	
 </div>
@@ -144,8 +151,11 @@ var vueApp = new Vue({
       		currentRow : null, //点击中的行，用于高亮选中行
       		checkboxList : [], //复选框选中的数据
       		
-      		loading: false,
-      		elementLoadingText : '',
+      		loading : false, //loading层弹出开关
+      		elementLoadingText : '', //loading提示
+      		
+      		showP : false, //展示属性开关
+			pData : [], //属性列表
       		
 		} //return end
 	}, //data end
@@ -360,6 +370,143 @@ var vueApp = new Vue({
 				that.showTop(error, '启动startReal');
 			});
 	    },	    
+	    
+	    showContainerProperties(row) {
+	    	var ele = row.containerProperties;
+	    	this.pData = [];
+	    	
+	    	var attr = {};
+	    	attr.name = "topics";
+	    	attr.value = ele.topics;
+	    	this.pData.push(attr);
+	    	var attr2 = {};
+	    	attr2.name = "topicPattern";
+	    	attr2.value = ele.topicPattern;
+	    	this.pData.push(attr2);
+	    	var attr3 = {};
+	    	attr3.name = "topicPartitionsToAssign";
+	    	attr3.value = ele.topicPartitionsToAssign;
+	    	this.pData.push(attr3);
+	    	var attr4 = {};
+	    	attr4.name = "pollTimeout";
+	    	attr4.value = ele.pollTimeout;
+	    	this.pData.push(attr4);
+	    	var attr5 = {};
+	    	attr5.name = "groupId";
+	    	attr5.value = ele.groupId;
+	    	this.pData.push(attr5);
+	    	var attr6 = {};
+	    	attr6.name = "clientId";
+	    	attr6.value = ele.clientId;
+	    	this.pData.push(attr6);
+	    	var attr7 = {};
+	    	attr7.name = "consumerRebalanceListener";
+	    	attr7.value = ele.consumerRebalanceListener;
+	    	this.pData.push(attr7);
+	    	var attr8 = {};
+	    	attr8.name = "syncCommitTimeout";
+	    	attr8.value = ele.syncCommitTimeout;
+	    	this.pData.push(attr8);
+	    	var attr9 = {};
+	    	attr9.name = "commitCallback";
+	    	attr9.value = ele.commitCallback;
+	    	this.pData.push(attr9);
+	    	var attr10 = {};
+	    	attr10.name = "syncCommits";
+	    	attr10.value = ele.syncCommits;
+	    	this.pData.push(attr10);
+	    	var attr11 = {};
+	    	attr11.name = "commitLogLevel";
+	    	attr11.value = ele.commitLogLevel;
+	    	this.pData.push(attr11);
+	    	var attr12 = {};
+	    	attr12.name = "kafkaConsumerProperties";
+	    	attr12.value = ele.kafkaConsumerProperties;
+	    	this.pData.push(attr12);
+	    	var attr13 = {};
+	    	attr13.name = "micrometerTags";
+	    	attr13.value = ele.micrometerTags;
+	    	this.pData.push(attr13);
+	    	var attr14 = {};
+	    	attr14.name = "ackMode";
+	    	attr14.value = ele.ackMode;
+	    	this.pData.push(attr14);
+	    	var attr15 = {};
+	    	attr15.name = "ackCount";
+	    	attr15.value = ele.ackCount;
+	    	this.pData.push(attr15);
+	    	var attr16 = {};
+	    	attr16.name = "ackTime";
+	    	attr16.value = ele.ackTime;
+	    	this.pData.push(attr16);
+	    	var attr17 = {};
+	    	attr17.name = "messageListener";
+	    	attr17.value = ele.messageListener;
+	    	this.pData.push(attr17);
+	    	var attr18 = {};
+	    	attr18.name = "consumerTaskExecutor";
+	    	attr18.value = ele.consumerTaskExecutor;
+	    	this.pData.push(attr18);
+	    	var attr19 = {};
+	    	attr19.name = "shutdownTimeout";
+	    	attr19.value = ele.shutdownTimeout;
+	    	this.pData.push(attr19);
+	    	var attr20 = {};
+	    	attr20.name = "ackOnError";
+	    	attr20.value = ele.ackOnError;
+	    	this.pData.push(attr20);
+	    	var attr21 = {};
+	    	attr21.name = "idleEventInterval";
+	    	attr21.value = ele.idleEventInterval;
+	    	this.pData.push(attr21);
+	    	var attr22 = {};
+	    	attr22.name = "transactionManager";
+	    	attr22.value = ele.transactionManager;
+	    	this.pData.push(attr22);
+	    	var attr23 = {};
+	    	attr23.name = "monitorInterval";
+	    	attr23.value = ele.monitorInterval;
+	    	this.pData.push(attr23);
+	    	var attr24 = {};
+	    	attr24.name = "scheduler";
+	    	attr24.value = ele.scheduler;
+	    	this.pData.push(attr24);
+	    	var attr25 = {};
+	    	attr25.name = "noPollThreshold";
+	    	attr25.value = ele.noPollThreshold;
+	    	this.pData.push(attr25);
+	    	var attr26 = {};
+	    	attr26.name = "logContainerConfig";
+	    	attr26.value = ele.logContainerConfig;
+	    	this.pData.push(attr26);
+	    	var attr27 = {};
+	    	attr27.name = "missingTopicsFatal";
+	    	attr27.value = ele.missingTopicsFatal;
+	    	this.pData.push(attr27);
+	    	var attr28 = {};
+	    	attr28.name = "idleBetweenPolls";
+	    	attr28.value = ele.idleBetweenPolls;
+	    	this.pData.push(attr28);
+	    	var attr29 = {};
+	    	attr29.name = "micrometerEnabled";
+	    	attr29.value = ele.micrometerEnabled;
+	    	this.pData.push(attr29);
+	    	var attr30 = {};
+	    	attr30.name = "consumerStartTimout";
+	    	attr30.value = ele.consumerStartTimout;
+	    	this.pData.push(attr30);
+	    	var attr31 = {};
+	    	attr31.name = "consumerProperties";
+	    	attr31.value = ele.consumerProperties;
+	    	this.pData.push(attr31);
+	    	var attr32 = {};
+	    	attr32.name = "topicPartitions";
+	    	attr32.value = ele.topicPartitions;
+	    	this.pData.push(attr32);
+
+	    	
+	    	this.showP = true;
+	    },
 	    
 	    
 	} //methods end
