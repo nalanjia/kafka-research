@@ -77,6 +77,10 @@ public class ConsumerGroupUtil {
 				System.out.println("尝试关闭消费者组第[" + (i+1) + "/" + length + "]次，成功！");
 				return KaResearchConstant.RES_SUCCESS;
 			} catch(Exception e) {
+				if(e.getMessage().contains("The group is not empty")) {
+					return KaResearchConstant.RES_FAIL;
+				}
+				
 				if(e.getMessage().contains("The group id does not")) {
 					System.out.println("尝试关闭消费者组第[" + (i+1) + "/" + length + "]次，成功！因为报错GroupIdNotFoundException，" + e.getMessage());
 					break;
@@ -115,6 +119,10 @@ public class ConsumerGroupUtil {
 			ele.setTopicName(k.topic());
 			ele.setPartition(k.partition());
 			ele.setOffset(v.offset());
+			
+			long logSize = ConsumerUtil.getLogSize(k.topic(), k.partition());
+			ele.setLogSize(logSize);
+			
 			retList.add(ele);
 		});
 		

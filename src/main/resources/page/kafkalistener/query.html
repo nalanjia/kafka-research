@@ -16,6 +16,22 @@
 	margin-bottom: 0px;
 	height: 0px;
 }
+.el-card {
+	width: 150px;
+	float: left;
+	margin-right: 5px;
+}
+.el-card__header {
+	padding: 5px 8px;
+	background-color: #409eff;
+}
+.el-card__body {
+	padding: 15px 18px;
+	background-color: #fafafa;
+}
+.clearfloat {
+	clear:both;height:0;font-size:1px;line-height:0px;
+}
 </style>
 </head>
 <body>
@@ -111,6 +127,9 @@
 					round size="mini" 
 					@click="showContainerProperties(scope.row)">查看属性</el-button>
 					
+				<el-button
+					round size="mini" 
+					@click="showMetric(scope.row)">查看度量</el-button>
 					
 					
 					
@@ -132,7 +151,36 @@
 			</el-table>
 	</el-drawer>	
 	
+	<el-dialog title="度量信息" :visible.sync="metricVisible"
+		:fullscreen="fullscreen"
+		>
+		
+		<el-tabs type="border-card">
+			<el-tab-pane :label="key" v-for="(value, key) in metricMap">
+			
+				<el-tabs>
+					<el-tab-pane :label="key2" v-for="(value2, key2) in value">
+					
+						<el-card class="box-card" v-for="(item, i) in value2">
+							<div slot="header" class="clearfix">
+								<span>{{item.name}}</span>
+							</div>
+							<div>
+								{{item.desc}}
+							</div>
+							<div style="background-color: #FF9900;">
+								{{item.value}}
+							</div>
+						</el-card>
+					
+					</el-tab-pane>
+				</el-tabs>
+				
+			</el-tab-pane>
+		</el-tabs>
+		
 	
+	</el-dialog>
 </div>
 </body>
 <!-- import Vue before Element -->
@@ -156,7 +204,12 @@ var vueApp = new Vue({
       		
       		showP : false, //展示属性开关
 			pData : [], //属性列表
+			
+			metricVisible : false, //度量开关
+			metricMap : {}, //度量
       		
+			fullscreen : true, //是否全屏
+			
 		} //return end
 	}, //data end
      
@@ -508,6 +561,14 @@ var vueApp = new Vue({
 	    	this.showP = true;
 	    },
 	    
+	    showMetric(row) {
+	    	this.metricVisible = true;
+	    	
+	    	var map = row.metricMap;
+	    	this.metricMap = map;
+	    	
+	    	
+	    }
 	    
 	} //methods end
 }) //new Vue end

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!-- import CSS -->
+<link rel="stylesheet" href="../common/css/index.css">
+<style type="text/css">
+[v-cloak]{
+            display: none;
+        }
+.el-table--striped .el-table__body tr.el-table__row--striped.current-row td, .el-table__body tr.current-row>td {
+    background-color: #FF8C00!important;
+}
+.el-card {
+	width: 150px;
+	float: left;
+	margin-right: 5px;
+}
+.el-card__header {
+	padding: 5px 8px;
+	background-color: #409eff;
+}
+.el-card__body {
+	padding: 15px 18px;
+	background-color: #fafafa;
+}
+.clearfloat {
+	clear:both;height:0;font-size:1px;line-height:0px;
+}
+</style>
+</head>
+<body>
+<div id="app" v-cloak>
+	<el-table :data="tableData" height="450" border stripe 
+		style="width: 100%"
+		highlight-current-row
+		@current-change="handleCC"
+		@selection-change="handleSC"
+		v-loading="loading"
+		:element-loading-text="elementLoadingText"
+		element-loading-spinner="el-icon-loading"
+		element-loading-background="rgba(0, 0, 0, 0.8)"
+		>
+		<el-table-column
+      		type="selection"
+      		min-width="55">
+    	</el-table-column>
+		<el-table-column label="序号"
+			type="index"
+			width="55">
+		</el-table-column>
+		<el-table-column label="消费者组" min-width="80">
+			<template slot-scope="scope">
+				{{scope.row.customerGroupId}}
+			</template>
+		</el-table-column>
+		<el-table-column label="是否简单" min-width="80">
+			<template slot-scope="scope">
+				<span v-if="scope.row.simpleConsumerGroup == true">
+					<img src="../common/img/right.png" width="25" height="25" />
+				</span>
+				<span v-if="scope.row.simpleConsumerGroup == false">
+					<img src="../common/img/wrong.png" width="25" height="25" />
+				</span>
+			</template>
+		</el-table-column>
+		
+		<el-table-column label="操作" min-width="150" align="center">
+			<template slot="header" slot-scope="scope">
+				操作
+			</template>
+		
+			<template slot-scope="scope">
+				<el-button
+					round size="mini" 
+					@click="getConsumerGroup(scope.row)">查看详情</el-button>
+				<el-button
+					round size="mini" 
+					@click="deleteGroup(scope.row)">删除</el-button>
+			</template>
+		</el-table-column>
+		
+	</el-table>		
+	
+	<el-dialog title="详情" :visible.sync="detailVisible"
+		:fullscreen="fullscreen"
+		>
+		<el-tabs type="border-card">
+			<el-tab-pane :label="value.topicName + '-' + value.partition" v-for="(value, index) in detailList">
+
+				<el-card class="box-card">
+					<div slot="header" class="clearfix">
+						<span>消息数量</span>
+					</div>
+					<div>
+						{{value.logSize}}
+					</div>
+				</el-card>
+				<el-card class="box-card">
+					<div slot="header" class="clearfix">
+						<span>消费offset</span>
+					</div>
+					<div>
+						{{value.offset}}
+					</div>
+				</el-card>
+			
+			</el-tab-pane>
+		</el-tabs>
+		
+	</el-dialog>	
+	
+</div>
+</body>
+<!-- import Vue before Element -->
+<script src="../common/js/vue.js"></script>
+<!-- import JavaScript -->
+<script src="../common/js/index.js"></script>
+<!-- import ajax -->
+<script src="../common/js/axios.min.js"></script>
+<script>
+var vueApp = new Vue({
+	el : '#app',
+	data : function() {
+		return {
+      		tableData : [], //列表数据
+			
+      		currentRow : null, //点击中的行，用于高亮选中行
+      		checkboxList : [], //复选框选中的数据
+      		
+      		loading : false, //loading层弹出开关
+      		elementLoadingText : '', //loading提示
+      		
+      		detailVisible : false, //详情
+      		detailList : [], //详情
+      		
+      		fullscreen : true, //是否全屏
+      		
+		} //return end
+	}, //data end
+     
+	mounted : function() {
+		this.query();
+	},
+     
+	methods : {
+		//阻断性提示，用户看完，自己关闭
+		showAlert(title, msg) {
+			this.$alert(msg, title, {
+		          confirmButtonText: '确定'
+		        });
+		},
+		
+		//顶部的提示，属于不顺利的情况下，用户看看就好
+		showTop(msg, position) {
+			this.$message({
+				dangerouslyUseHTMLString: true,
+				type: 'info',
+				message: '<strong>' + position + '</strong><br>' + msg
+			});
+		},
+		
+		//右侧提示，属于顺利情况下，业务提示
+		showRight(title, msg, mstime) {
+			var str = "<span style='float:left;text-align:left;'>" + msg + "</span>";
+			msg = str;
+			
+			var that = this;
+			//避免重叠的写法setTimeout
+			window.setTimeout(() => {
+				that.$notify.success({
+					dangerouslyUseHTMLString: true,
+		          	title: title,
+		          	message: msg,
+		          	showClose: false,
+		          	duration: mstime
+		        });
+			}, 0)
+	    },
+   	  
+		handleCC(row) {
+	    	this.currentRow = row;
+	    },
+	    
+	    handleSC(selection) {
+	    	this.checkboxList = selection;
+	    },
+		
+	    query : function() {
+			var that = this;
+			var url = '/consumer/listGroupId';
+
+			axios({
+				method: 'post',
+				url: url
+  			  	})
+			.then(function (res) {
+				that.tableData = res.data;
+			})
+			.catch(function (error) {
+				that.showTop(error, '查询消费者组query');
+			});
+		},
+	    
+		deleteGroup(row) {
+	    	var that = this;
+	        this.$confirm('是否删除？', '提示', {
+				dangerouslyUseHTMLString: true,
+				confirmButtonText: '确定',
+				cancelButtonText: '取消',
+				type: 'warning'
+	        }).then(() => {
+// 	        	that.elementLoadingText="拼命删除中";
+	        	that.deleteGroupReal(row);
+// 	        	that.loadChange();
+	        }).catch((error) => {
+	        	that.showTop(error, "删除deleteGroup");
+	        });
+	    },
+	    deleteGroupReal(row) {
+	    	var that = this;
+			var url = '/consumer/deleteConsumerGroup';
+
+			let param = new URLSearchParams();
+			param.append('groupId', row.customerGroupId);
+			
+			axios({
+				method: 'post',
+				url: url,
+				data: param
+  			  	})
+			.then(function (res) {
+				var flag = res.data;
+				if(flag == 'FAIL') {
+					that.showAlert("无法删除", "消费者组" + row.customerGroupId + "正在监听消息中");
+				} else {
+					that.query();
+					that.showRight("删除成功", row.customerGroupId + "已删除", 3000);
+				}
+			})
+			.catch(function (error) {
+				that.showTop(error, '删除deleteGroup');
+			});
+	    },
+		loadChange() {
+	    	var that = this;
+	    	this.loading = true;
+	    	window.setTimeout(() => {
+	    		that.loading = false;
+	    		that.query();
+			}, 5000);
+	    },
+	    getConsumerGroup(row) {
+	    	var that = this;
+			var url = '/consumer/getConsumerGroup';
+
+			let param = new URLSearchParams();
+			param.append('groupId', row.customerGroupId);
+			
+			axios({
+				method: 'post',
+				url: url,
+				data: param
+  			  	})
+			.then(function (res) {
+				that.detailList = res.data;
+				
+				that.detailVisible = true;
+			})
+			.catch(function (error) {
+				that.showTop(error, '查看详情getConsumerGroup');
+			});
+	    },
+	    
+	    
+	} //methods end
+}) //new Vue end
+
+</script>
+</html>

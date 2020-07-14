@@ -1,7 +1,9 @@
 package com.aebiz.util;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,7 +14,6 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
@@ -94,7 +95,6 @@ public class ConsumerUtil {
 				groupMap2.forEach((group, groupList) -> {
 					
 					List<ResearchMetricDTO> mList = new ArrayList<>();
-					map.put(group, mList);
 					
 					groupList.forEach(metric -> {
 						ResearchMetricDTO metricDTO = new ResearchMetricDTO();
@@ -106,7 +106,15 @@ public class ConsumerUtil {
 						mList.add(metricDTO);
 						
 					});
+					
+					//排序
+					List<ResearchMetricDTO> mList2 = mList.stream()
+					.sorted(Comparator.comparing(ResearchMetricDTO::getName,Comparator.naturalOrder()))
+					.collect(Collectors.toList());
+					
+					map.put(group, mList2);
 				});
+				
 			});
 			
 			retList.add(dto);
@@ -115,50 +123,76 @@ public class ConsumerUtil {
 	}
 	
 	/**
+	 * 查询分区的消息数量
+	 */
+	public static long getLogSize(String topicName, int partition) {
+		String groupId = ConsumerUtil.getGroupId();
+		KafkaConsumer consumer = ConsumerUtil.getKafkaConsumer(groupId);
+		
+		TopicPartition tp = new TopicPartition(topicName, partition);
+		//为消费者指定分区
+		List<TopicPartition> tpList = Arrays.asList(tp);
+		consumer.assign(tpList);
+		
+		//查询分区的first offset，end offset
+		Map<TopicPartition, Long> beginMap = consumer.beginningOffsets(tpList);
+		Map<TopicPartition, Long> endMap = consumer.endOffsets(tpList);
+				
+		Long beginOffset = beginMap.get(tp);
+		Long endOffset = endMap.get(tp);
+		long logSize = endOffset.longValue() - beginOffset.longValue();
+		
+		//关闭consumer
+		ConsumerGroupUtil.deleteConsumerGroup(groupId);
+		return logSize;
+	}
+	
+	
+	/**
 	 * 展示消费者组的消费进度
 	 */
-	public static String prepareGroupIdDetails(Map<TopicPartition, OffsetAndMetadata> map,
-			Map<TopicPartition, Long> leos) {
-		//按topic分组
-		Map<String, List<TopicPartition>> topicMap = 
-				new HashMap<>();
-		map.forEach((k, v) -> {
-			String topicName = k.topic();
-			List<TopicPartition> list = topicMap.get(topicName);
-			if(list == null) {
-				list = new ArrayList<>();
-				topicMap.put(topicName, list);
-			}
-			list.add(k); //将TopicPartition收集起来
-		});
-		
-		//分组名，排序
-		Map<String, List<TopicPartition>> topicMap2 = topicMap.entrySet().stream()
-			    .sorted(Map.Entry.comparingByKey())
-			    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
-			    (oldValue, newValue) -> oldValue, LinkedHashMap::new));
-		
-		//按分组打印
-		StringBuffer buf = new StringBuffer(OtherUtil.getNow());
-		String spanBegin = "<span style='color:blue;font-weight:bold;'>";
-		String spanEnd = "</span>";
-		topicMap2.forEach((topic, partitionList) -> {
-			buf.append("<br>　　" + spanBegin + topic + "[" + partitionList.size() + "]" + spanEnd);
-			
-			partitionList.forEach(partition -> {
-				OffsetAndMetadata meta = map.get(partition);
-				Long leo = leos.get(partition);
-				buf.append("<br>　　　　分区编号 : " + partition.partition());
-				buf.append("<br>　　　　消费位移 : " + meta.offset());
-				buf.append("<br>　　　　　　LEO : " + leo);
-				buf.append("<br>　　　　　　LAG : " + (leo - meta.offset()));
-				buf.append("<br>　　　　--------------------");
-			});
-			buf.append("<br>　　----------------------------------------");
-		});
-		
-		return buf.toString();		
-	}
+//	public static String prepareGroupIdDetails(Map<TopicPartition, OffsetAndMetadata> map,
+//			Map<TopicPartition, Long> leos) {
+//		//按topic分组
+//		Map<String, List<TopicPartition>> topicMap = 
+//				new HashMap<>();
+//		map.forEach((k, v) -> {
+//			String topicName = k.topic();
+//			List<TopicPartition> list = topicMap.get(topicName);
+//			if(list == null) {
+//				list = new ArrayList<>();
+//				topicMap.put(topicName, list);
+//			}
+//			list.add(k); //将TopicPartition收集起来
+//		});
+//		
+//		//分组名，排序
+//		Map<String, List<TopicPartition>> topicMap2 = topicMap.entrySet().stream()
+//			    .sorted(Map.Entry.comparingByKey())
+//			    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+//			    (oldValue, newValue) -> oldValue, LinkedHashMap::new));
+//		
+//		//按分组打印
+//		StringBuffer buf = new StringBuffer(OtherUtil.getNow());
+//		String spanBegin = "<span style='color:blue;font-weight:bold;'>";
+//		String spanEnd = "</span>";
+//		topicMap2.forEach((topic, partitionList) -> {
+//			buf.append("<br>　　" + spanBegin + topic + "[" + partitionList.size() + "]" + spanEnd);
+//			
+//			partitionList.forEach(partition -> {
+//				OffsetAndMetadata meta = map.get(partition);
+//				Long leo = leos.get(partition);
+//				buf.append("<br>　　　　分区编号 : " + partition.partition());
+//				buf.append("<br>　　　　消费位移 : " + meta.offset());
+//				buf.append("<br>　　　　　　LEO : " + leo);
+//				buf.append("<br>　　　　　　LAG : " + (leo - meta.offset()));
+//				buf.append("<br>　　　　--------------------");
+//			});
+//			buf.append("<br>　　----------------------------------------");
+//		});
+//		
+//		return buf.toString();		
+//	}
 	
 	
 	public static String getGroupId() {
