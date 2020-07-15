@@ -1,0 +1,5 @@
+http://kafka.apache.org/23/documentation.html
+
+家里的宽带，打开后，只有2. APIS，3. CONFIGURATION这种目录，其下没有内容
+
+于是，去公司打开，能看到所有内容。另存为
