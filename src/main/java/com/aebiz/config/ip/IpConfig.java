@@ -1,15 +1,12 @@
 package com.aebiz.config.ip;
 
-import com.aebiz.util.ip.IpHelper;
-
-
 /**
  * 查询IP归属地
  */
 public class IpConfig {
 
 	public static String getIpInfo(String ip) {
-		String region = IpHelper.findRegionByIp(ip);
+		String region = IpQueryHelper.queryIP(ip);
 		return region;
 	}
 	
