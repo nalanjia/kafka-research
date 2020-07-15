@@ -41,7 +41,7 @@ public class IpFilter implements Filter {
 			//向IP主题插入1条消息
 			String topicName = KaResearchConstant.TOPIC_IP;
 			String keyName = null;
-			String msg = ip + " " + info;
+			String msg = info;
 			producerController.addOneMsg(topicName, keyName, msg);
 			log.debug("[" + ip + "]访问了首页，该IP详情为" + msg);
 		}
