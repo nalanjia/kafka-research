@@ -565,7 +565,7 @@ var context={
     <li>The <a href="/documentation/streams">Streams API</a> allows an application to act as a <i>stream processor</i>, consuming an input stream from one or more topics and producing an output stream to one or more output topics, effectively transforming the input streams to output streams.
     <li>The <a href="/documentation.html#connect">Connector API</a> allows building and running reusable producers or consumers that connect Kafka topics to existing applications or data systems. For example, a connector to a relational database might capture every change to a table.
   </ul>
-      <img src="/{{version}}/images/kafka-apis.png" style="float: right; width: 50%;">
+      <img src="./Apache Kafka_files/kafka-apis.png" style="float: right; width: 50%;">
       </div>
   <p>
   In Kafka the communication between the clients and the servers is done with a simple, high-performance, language agnostic <a href="https://kafka.apache.org/protocol.html">TCP protocol</a>. This protocol is versioned and maintains backwards compatibility with older version. We provide a Java client for Kafka, but clients are available in <a href="https://cwiki.apache.org/confluence/display/KAFKA/Clients">many languages</a>.</p>
@@ -574,14 +574,14 @@ var context={
   <p>Let's first dive into the core abstraction Kafka provides for a stream of records&mdash;the topic.</p>
   <p>A topic is a category or feed name to which records are published. Topics in Kafka are always multi-subscriber; that is, a topic can have zero, one, or many consumers that subscribe to the data written to it.</p>
   <p> For each topic, the Kafka cluster maintains a partitioned log that looks like this: </p>
-  <img class="centered" src="/{{version}}/images/log_anatomy.png">
+  <img class="centered" src="./Apache Kafka_files/log_anatomy.png">
 
   <p> Each partition is an ordered, immutable sequence of records that is continually appended to&mdash;a structured commit log. The records in the partitions are each assigned a sequential id number called the <i>offset</i> that uniquely identifies each record within the partition.
   </p>
   <p>
   The Kafka cluster durably persists all published records&mdash;whether or not they have been consumed&mdash;using a configurable retention period. For example, if the retention policy is set to two days, then for the two days after a record is published, it is available for consumption, after which it will be discarded to free up space. Kafka's performance is effectively constant with respect to data size so storing data for a long time is not a problem.
   </p>
-  <img class="centered" src="/{{version}}/images/log_consumer.png" style="width:400px">
+  <img class="centered" src="./Apache Kafka_files/log_consumer.png" style="width:400px">
   <p>
   In fact, the only metadata retained on a per-consumer basis is the offset or position of that consumer in the log. This offset is controlled by the consumer: normally a consumer will advance its offset linearly as it reads records, but, in fact, since the position is controlled by the consumer it can consume records in any order it likes. For example a consumer can reset to an older offset to reprocess data from the past or skip ahead to the most recent record and start consuming from "now".
   </p>
@@ -620,7 +620,7 @@ var context={
   <p>
   If all the consumer instances have different consumer groups, then each record will be broadcast to all the consumer processes.
   </p>
-  <img class="centered" src="/{{version}}/images/consumer-groups.png">
+  <img class="centered" src="./Apache Kafka_files/consumer-groups.png">
   <p>
     A two server Kafka cluster hosting four partitions (P0-P3) with two consumer groups. Consumer group A has two consumer instances and group B has four.
   </p>
@@ -8197,7 +8197,7 @@ Examples: plugin.path=/usr/local/share/java,/usr/local/share/kafka/plugins,/opt/
 
     Here is a high-level picture that shows the logical structure of a Kafka log with the offset for each message.
     <p>
-    <img class="centered" src="/{{version}}/images/log_cleaner_anatomy.png">
+    <img class="centered" src="./Apache Kafka_files/log_cleaner_anatomy.png">
     <p>
     The head of the log is identical to a traditional Kafka log. It has dense, sequential offsets and retains all messages. Log compaction adds an option for handling the tail of the log. The picture above shows a log
     with a compacted tail. Note that the messages in the tail of the log retain the original offset assigned when they were first written&mdash;that never changes. Note also that all offsets remain valid positions in
@@ -8211,7 +8211,7 @@ Examples: plugin.path=/usr/local/share/java,/usr/local/share/kafka/plugins,/opt/
     The compaction is done in the background by periodically recopying log segments. Cleaning does not block reads and can be throttled to use no more than a configurable amount of I/O throughput to avoid impacting
     producers and consumers. The actual process of compacting a log segment looks something like this:
     <p>
-    <img class="centered" src="/{{version}}/images/log_compaction.png">
+    <img class="centered" src="./Apache Kafka_files/log_compaction.png">
     <p>
     <h4><a id="design_compactionguarantees" href="#design_compactionguarantees">What guarantees does log compaction provide?</a></h4>
 
@@ -9226,7 +9226,7 @@ Examples: plugin.path=/usr/local/share/java,/usr/local/share/kafka/plugins,/opt/
    <p>
     The use of the message offset as the message id is unusual. Our original idea was to use a GUID generated by the producer, and maintain a mapping from GUID to offset on each broker. But since a consumer must maintain an ID for each server, the global uniqueness of the GUID provides no value. Furthermore, the complexity of maintaining the mapping from a random id to an offset requires a heavy weight index structure which must be synchronized with disk, essentially requiring a full persistent random-access data structure. Thus to simplify the lookup structure we decided to use a simple per-partition atomic counter which could be coupled with the partition id and node id to uniquely identify a message; this makes the lookup structure simpler, though multiple seeks per consumer request are still likely. However once we settled on a counter, the jump to directly using the offset seemed natural&mdash;both after all are monotonically increasing integers unique to a partition. Since the offset is hidden from the consumer API this decision is ultimately an implementation detail and we went with the more efficient approach.
     </p>
-    <img class="centered" src="/{{version}}/images/kafka_log.png">
+    <img class="centered" src="./Apache Kafka_files/kafka_log.png">
     <h4><a id="impl_writes" href="#impl_writes">Writes</a></h4>
     <p>
     The log allows serial appends which always go to the last file. This file is rolled over to a fresh file when it reaches a configurable size (say 1GB). The log takes two configuration parameters: <i>M</i>, which gives the number of messages to write before forcing the OS to flush the file to disk, and <i>S</i>, which gives a number of seconds after which a flush is forced. This gives a durability guarantee of losing at most <i>M</i> messages or <i>S</i> seconds of data in the event of a system crash.

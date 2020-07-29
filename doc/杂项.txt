@@ -28,7 +28,7 @@ baseOffset: 8 lastOffset: 8 count: 1 baseSequence: -1 lastSequence: -1 producerI
 
 注意里边的compresscodec，就是压缩算法
 
-方法二，在客户端，生产者的项目，要把日至相关的pom.xml调对
+方法二，在客户端，生产者的项目，要把日志相关的pom.xml调对
 因为kafka-client只不支持logback，所以把logback排除掉
 引入log4j2，具体做法，看偶的pom.xml吧
 只要你启动项目时，能看到org.apache.kafka下的日志，就算成功了
@@ -40,12 +40,28 @@ enable.idempotence = false
 
 
 
+【问题】Kafka 部署在 Linux 上是有优势的，为什么？
+1.linux上用的是epoll，windows上用的是select。epoll有更高效的 I/O 性能
+2.在 Linux 部署 Kafka 能够享受到零拷贝技术所带来的快速数据传输特性
+3.社区对 Windows 平台上发现的 Kafka Bug 不做任何承诺，所以部署到linux更好
 
+【问题】磁盘容量，考虑哪些要点？
+新增消息数（多少条）
+平均消息大小（每条大小）
+备份数（副本吗）
+是否启用压缩（压缩吗）
+消息留存时间（保存几天）
 
+【问题】带宽和机器，如何计算
+a.每秒要处理多少Mb？
+b.单台机器的带宽是多少Mb?
 
+a除以b，就是需要的机器数。需要额外复制2份？那结果乘以3
 
-
-
-
+如何计算单台机器的带宽？
+比如中国电信告诉你，这个机房的这个机器的带宽是1000Mb的千兆网络
+为了不丢包，你放弃30%吧，剩下700Mb
+为了给其他副本机器留带宽，你再放弃50%吧，剩下350Mb
+所以，这350Mb，才能用来接收生产者发来的消息
 
 
