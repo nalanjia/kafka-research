@@ -83,7 +83,8 @@ public class KafkaListenerConfig {
 				+ "\nMessageHeaderAccessor : " + messageHeaderAccessor
 				
 				);
-		//手动提交
+		//手动提交，有数据被消费了才会向主题__consumer_offsets添加数据
+		//不像自动提交，总是不停地向主题__consumer_offsets添加数据
 		ack.acknowledge();
     }
 	

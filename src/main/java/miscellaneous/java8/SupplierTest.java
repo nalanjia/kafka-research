@@ -20,17 +20,8 @@ public class SupplierTest {
 	}
 	
 	static class Student {
-		private int age = 0;
-		
-		public Student() {
-			super();
-		}
-		
 		public int getAge() {
-			if(age == 0) {
-				return new Random().nextInt(10);
-			}
-			return age;
+			return new Random().nextInt(10);
 		}
 	}
 

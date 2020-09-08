@@ -1,18 +1,44 @@
 package miscellaneous.java8;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class MapTest {
 
 	public static void main(String[] args) {
 		//只针对KEY不存在，才进Function的逻辑（新建VALUE并塞入map）
 		//KEY存在的话，根本就不进Function的逻辑，VALUE不会变
-//		testComputeIfAbsent();
+		testComputeIfAbsent();
 		
 		
 		//不论KEY是否存在，都会进入BiFunction的逻辑（决定VALUE，完全由BiFunction的逻辑来决定）
-		testCompute();
+//		testCompute();
+		
+		//到底删除了谁？
+//		testRemove();
+	}
+	
+	public static void testRemove() {
+		Map<String, Integer> map = new HashMap<>();
+		map.put("1", 1);
+		map.put("2", 2);
+		System.out.println("map : " + map);
+		
+//		List<String> list = map.entrySet().stream()
+//						.map(Map.Entry::getKey)
+//						.collect(Collectors.toList());
+		List<String> list = Arrays.asList("1"
+				, "2"
+				);
+		
+		System.out.println("list : " + list);
+		
+		list.forEach(map::remove);
+		System.out.println("map2 : " + map);
+		System.out.println("list2 : " + list);
 	}
 	
 	public static void testCompute() {

@@ -67,25 +67,7 @@ org.apache.kafka.clients.consumer.RangeAssignor
 消费者消费分区，如何适配
 
 
-spring-boot-autoconfigure中kafka的部分
-问：ConcurrentKafkaListenerContainerFactoryConfigurer装配器做了什么？
-答：里边的configure方法，有2个参数
-ConcurrentKafkaListenerContainerFactory 监听器容器工厂B
-ConsumerFactory 消费者工厂C
 
-1。将C装配给B
-2。将配置文件中spring.kafka.listener开头的参数，装配给B
-3。将装配器自己的一些参数，装配给B
-总之一句话，就是将监听器容器工厂武装起来
-
-kafka初始化调用链
-KafkaAutoConfiguration ->
-KafkaAnnotationDrivenConfiguration ->
-@EnableKafka ->
-KafkaListenerConfigurationSelector ->
-KafkaBootstrapConfiguration ->
-KafkaListenerAnnotationBeanPostProcessor KafkaListenerEndpointRegistry ->
-KafkaListener
 
 
 
