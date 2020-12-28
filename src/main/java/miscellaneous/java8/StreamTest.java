@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -15,7 +16,7 @@ public class StreamTest {
 
 	public static void main(String[] args) {
 		//List变Map（键重复，值覆盖）
-//		list2map();
+		list2map();
 		
 		//List变List
 //		list2list();
@@ -33,7 +34,7 @@ public class StreamTest {
 //		mapSortByKey();
 		
 		//平铺
-		flag();
+//		flag();
 	}
 	
 	public static void flag() {
@@ -211,6 +212,11 @@ public class StreamTest {
 			}
 		);
 		System.out.println("结论：List转Map，键重复，会丢数据");
+		
+		//Duplicate key Topic对象name2
+//		Map<String, Topic> topicNameToTopic2 = topics.stream()
+//				.collect(Collectors.toMap(Topic::getName, Function.identity()));
+//		System.out.println("topicNameToTopic2 : " + topicNameToTopic2);
 	}
 	
 	static class TopicList {
