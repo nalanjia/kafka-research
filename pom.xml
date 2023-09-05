@@ -45,7 +45,7 @@
 			kafka的版本，是从上方spring-boot-starter-parent里边抄的
 			摆出来，只是为了明确知道，使用的是哪个版本的kafka
 		-->
-		<kafka.version>2.3.1</kafka.version>
+		<kafka.version>2.6.3</kafka.version>
 		<spring-kafka.version>2.3.3.RELEASE</spring-kafka.version>
 	</properties>
 
